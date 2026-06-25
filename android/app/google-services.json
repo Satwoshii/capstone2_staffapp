@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "225436362926",
+    "project_id": "no-d42ca",
+    "storage_bucket": "no-d42ca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:225436362926:android:4a02cfad0a7eac176c653f",
+        "android_client_info": {
+          "package_name": "com.capstone.capstone2_test"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "225436362926-p7j9sictons18v8c8aba1j9bpp68qtv2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCrU5OmI2DDe_iTVu13Ax6xG30SWyeHfp8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "225436362926-p7j9sictons18v8c8aba1j9bpp68qtv2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "225436362926-i7vgolo2bbem7tovp8kl3gr85l6mgu0k.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.capstone.capstone2Test"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:225436362926:android:7bb98127a46a2a6d6c653f",
+        "android_client_info": {
+          "package_name": "com.capstone.itsoadminappcapstone"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "225436362926-p7j9sictons18v8c8aba1j9bpp68qtv2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCrU5OmI2DDe_iTVu13Ax6xG30SWyeHfp8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "225436362926-p7j9sictons18v8c8aba1j9bpp68qtv2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "225436362926-i7vgolo2bbem7tovp8kl3gr85l6mgu0k.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.capstone.capstone2Test"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
