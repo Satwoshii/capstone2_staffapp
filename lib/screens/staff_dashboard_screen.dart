@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
@@ -21,68 +20,131 @@ class StaffDashboardScreen extends StatefulWidget {
 }
 
 class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
-  int selectedIndex = 0;
+  late final List<_MenuItem> _menuItems;
+  int _selectedIndex = 0;
+  bool _loggingOut = false;
 
-  bool get isAdmin => widget.user.role.trim().toLowerCase() == 'admin';
+  bool get _isAdmin => widget.user.role == 'admin';
 
-  List<_MenuItem> get menuItems {
-    final items = <_MenuItem>[
-      _MenuItem('PC Health', Icons.monitor_heart, const PcHealthReportsScreen()),
-      _MenuItem('Repairs', Icons.build, RepairManagementScreen(user: widget.user)),
-      _MenuItem('Last Known User', Icons.person_pin_circle, const LastKnownUserScreen()),
-      _MenuItem('Reports', Icons.analytics, const ReportsScreen()),
+  @override
+  void initState() {
+    super.initState();
+    _menuItems = [
+      const _MenuItem(
+        'PC Health',
+        Icons.monitor_heart,
+        PcHealthReportsScreen(),
+      ),
+      _MenuItem(
+        'Repairs',
+        Icons.build,
+        RepairManagementScreen(user: widget.user),
+      ),
+      const _MenuItem(
+        'Last Known User',
+        Icons.person_pin_circle,
+        LastKnownUserScreen(),
+      ),
+      const _MenuItem(
+        'Reports',
+        Icons.analytics,
+        ReportsScreen(),
+      ),
+      if (_isAdmin) ...[
+        const _MenuItem(
+          'Rooms',
+          Icons.meeting_room,
+          RoomManagementScreen(),
+        ),
+        _MenuItem(
+          'Accounts',
+          Icons.manage_accounts,
+          AccountManagementScreen(currentUserId: widget.user.uid),
+        ),
+      ],
     ];
+  }
 
-    if (isAdmin) {
-      items.addAll([
-        _MenuItem('Rooms', Icons.meeting_room, const RoomManagementScreen()),
-        _MenuItem('Accounts', Icons.manage_accounts, const AccountManagementScreen()),
-      ]);
+  Future<void> _logout() async {
+    if (_loggingOut) return;
+    setState(() => _loggingOut = true);
+
+    try {
+      await FirebaseUserService.signOut();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
+        (_) => false,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loggingOut = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not sign out: $error')),
+      );
     }
-
-    return items;
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = menuItems;
-    final selected = items[selectedIndex];
+    final selected = _menuItems[_selectedIndex];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${isAdmin ? 'Admin' : 'ITSO'} Management App'),
+        title: const Text('Syswatch Staff'),
         actions: [
-          Center(child: Text(widget.user.displayName.isEmpty ? widget.user.email : widget.user.displayName)),
-          const SizedBox(width: 12),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: () async {
-              await FirebaseUserService.signOut();
-              if (!mounted) return;
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
-                (route) => false,
-              );
-            },
-            icon: const Icon(Icons.logout),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Chip(
+              avatar: const Icon(Icons.person, size: 18),
+              label: Text(
+                widget.user.displayName.isEmpty
+                    ? widget.user.email
+                    : widget.user.displayName,
+              ),
+            ),
           ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Sign out',
+            onPressed: _loggingOut ? null : _logout,
+            icon: _loggingOut
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.logout),
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Row(
         children: [
           NavigationRail(
-            selectedIndex: selectedIndex,
+            selectedIndex: _selectedIndex,
             onDestinationSelected: (index) {
-              setState(() {
-                selectedIndex = index;
-              });
+              setState(() => _selectedIndex = index);
             },
             labelType: NavigationRailLabelType.all,
+            leading: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Tooltip(
+                message: _isAdmin ? 'Admin access' : 'ITSO access',
+                child: CircleAvatar(
+                  child: Text(_isAdmin ? 'A' : 'I'),
+                ),
+              ),
+            ),
             destinations: [
-              for (final item in items)
+              for (final item in _menuItems)
                 NavigationRailDestination(
                   icon: Icon(item.icon),
+                  selectedIcon: Icon(
+                    item.icon,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   label: Text(item.title),
                 ),
             ],
@@ -93,13 +155,29 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-                  child: Text(
-                    selected.title,
-                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                  child: Row(
+                    children: [
+                      Icon(selected.icon),
+                      const SizedBox(width: 10),
+                      Text(
+                        selected.title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
                 ),
-                Expanded(child: selected.screen),
+                Expanded(
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: [
+                      for (final item in _menuItems) item.screen,
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -114,11 +192,5 @@ class _MenuItem {
   final IconData icon;
   final Widget screen;
 
-  _MenuItem(this.title, this.icon, this.screen);
-}
-
-String formatTimestamp(dynamic value) {
-  if (value == null) return '';
-  if (value is Timestamp) return value.toDate().toString();
-  return value.toString();
+  const _MenuItem(this.title, this.icon, this.screen);
 }

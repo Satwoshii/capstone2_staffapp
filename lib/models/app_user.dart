@@ -1,6 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AppUser {
+  static const allowedAccountRoles = {'student', 'itso', 'admin'};
+  static const firestoreAccountRoleValues = [
+    'student',
+    'Student',
+    'STUDENT',
+    'itso',
+    'Itso',
+    'ITSO',
+    'admin',
+    'Admin',
+    'ADMIN',
+  ];
+
   final String uid;
   final String email;
   final String displayName;
@@ -43,17 +56,27 @@ class AppUser {
     );
   }
 
-  factory AppUser.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory AppUser.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data();
+    if (data == null) {
+      throw const FormatException('The user profile is empty.');
+    }
+
+    final activeValue = data['active'];
 
     return AppUser(
-      uid: data['uid'] ?? doc.id,
-      email: data['email'] ?? '',
-      displayName: data['displayName'] ?? '',
+      uid: document.id,
+      email: (data['email'] ?? '').toString().trim(),
+      displayName: (data['displayName'] ?? '').toString().trim(),
       role: (data['role'] ?? 'student').toString().trim().toLowerCase(),
-      studentId: data['studentId'],
-      passwordHash: data['passwordHash'],
-      active: data['active'] ?? true,
+      studentId: data['studentId']?.toString().trim(),
+      passwordHash: data['passwordHash']?.toString(),
+      active: activeValue == null ||
+          activeValue == true ||
+          activeValue == 1 ||
+          activeValue.toString().toLowerCase() == 'true',
     );
   }
 }

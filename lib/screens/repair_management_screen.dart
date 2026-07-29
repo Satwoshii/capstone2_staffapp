@@ -2,95 +2,285 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
-import 'staff_dashboard_screen.dart';
+import '../utils/firestore_helpers.dart';
 
-class RepairManagementScreen extends StatelessWidget {
+class RepairManagementScreen extends StatefulWidget {
   final AppUser user;
 
   const RepairManagementScreen({super.key, required this.user});
 
-  Future<void> _markRepaired(BuildContext context, QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
-    final notesController = TextEditingController();
+  @override
+  State<RepairManagementScreen> createState() =>
+      _RepairManagementScreenState();
+}
 
-    final confirm = await showDialog<bool>(
+class _RepairManagementScreenState extends State<RepairManagementScreen> {
+  final _updatingReportIds = <String>{};
+  bool _pendingOnly = true;
+
+  Future<void> _markRepaired(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) async {
+    if (_updatingReportIds.contains(document.id)) return;
+
+    final notesController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final notes = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Mark as Repaired'),
-        content: TextField(
-          controller: notesController,
-          maxLines: 4,
-          decoration: const InputDecoration(
-            labelText: 'Technician notes',
-            border: OutlineInputBorder(),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Mark as Repaired'),
+          content: SizedBox(
+            width: 460,
+            child: Form(
+              key: formKey,
+              child: TextFormField(
+                controller: notesController,
+                autofocus: true,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Technician notes',
+                  hintText: 'Describe the action taken or part replaced.',
+                  alignLabelWithHint: true,
+                ),
+                validator: (value) {
+                  if ((value ?? '').trim().isEmpty) {
+                    return 'Technician notes are required.';
+                  }
+                  return null;
+                },
+              ),
+            ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                if (!(formKey.currentState?.validate() ?? false)) return;
+                Navigator.of(dialogContext).pop(notesController.text.trim());
+              },
+              icon: const Icon(Icons.check),
+              label: const Text('Save Repair'),
+            ),
+          ],
+        );
+      },
     );
 
-    if (confirm != true) return;
+    notesController.dispose();
+    if (notes == null) return;
 
-    final data = doc.data();
-    final now = DateTime.now().toIso8601String();
+    setState(() => _updatingReportIds.add(document.id));
 
-    await doc.reference.set({
-      'repaired': 1,
-      'repairedAt': now,
-      'technicianNotes': notesController.text.trim(),
-    }, SetOptions(merge: true));
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final maintenanceReference =
+          firestore.collection('maintenance_logs').doc();
+      final data = document.data();
+      final batch = firestore.batch();
 
-    await FirebaseFirestore.instance.collection('maintenance_logs').add({
-      'faultReportId': doc.id,
-      'roomName': data['roomName'],
-      'pcId': data['pcId'],
-      'technicianName': user.displayName.isEmpty ? user.email : user.displayName,
-      'notes': notesController.text.trim(),
-      'repairDate': now,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+      batch.set(
+        document.reference,
+        {
+          'repaired': true,
+          'status': 'repaired',
+          'repairedAt': FieldValue.serverTimestamp(),
+          'repairedByUid': widget.user.uid,
+          'technicianName': widget.user.displayName.isEmpty
+              ? widget.user.email
+              : widget.user.displayName,
+          'technicianNotes': notes,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      batch.set(maintenanceReference, {
+        'faultReportId': document.id,
+        'roomName': data['roomName'],
+        'pcId': data['pcId'],
+        'technicianUid': widget.user.uid,
+        'technicianEmail': widget.user.email,
+        'technicianName': widget.user.displayName.isEmpty
+            ? widget.user.email
+            : widget.user.displayName,
+        'notes': notes,
+        'repairDate': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Repair saved successfully.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save repair: ${_cleanError(error)}')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingReportIds.remove(document.id));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('fault_reports').snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-
-        final docs = snapshot.data!.docs;
-        docs.sort((a, b) => formatTimestamp(b.data()['createdAt']).compareTo(formatTimestamp(a.data()['createdAt'])));
-
-        if (docs.isEmpty) return const Center(child: Text('No fault reports yet.'));
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(20),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final doc = docs[index];
-            final data = doc.data();
-            final repaired = data['repaired'] == 1 || data['repaired'] == true;
-
-            return Card(
-              child: ListTile(
-                leading: Icon(repaired ? Icons.check_circle : Icons.build_circle, color: repaired ? Colors.green : Colors.orange),
-                title: Text('${data['roomName'] ?? ''} - ${data['pcId'] ?? ''}'),
-                subtitle: Text('${data['issue'] ?? ''}\n${data['details'] ?? ''}\nCreated: ${data['createdAt'] ?? ''}'),
-                isThreeLine: true,
-                trailing: repaired
-                    ? const Text('Repaired')
-                    : ElevatedButton(
-                        onPressed: () => _markRepaired(context, doc),
-                        child: const Text('Mark Repaired'),
-                      ),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Card(
+            child: SwitchListTile(
+              value: _pendingOnly,
+              title: const Text('Show pending repairs only'),
+              subtitle: const Text(
+                'Turn this off to include completed maintenance records.',
               ),
-            );
-          },
-        );
-      },
+              secondary: const Icon(Icons.filter_alt_outlined),
+              onChanged: (value) => setState(() => _pendingOnly = value),
+            ),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('fault_reports')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'Could not load fault reports: '
+                    '${_cleanError(snapshot.error!)}',
+                  ),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final documents = snapshot.data!.docs.where((document) {
+                final repaired = boolFromFirestore(
+                  document.data()['repaired'],
+                );
+                return !_pendingOnly || !repaired;
+              }).toList()
+                ..sort(
+                  (a, b) => compareFirestoreTimestamps(
+                    b.data()['createdAt'],
+                    a.data()['createdAt'],
+                  ),
+                );
+
+              if (documents.isEmpty) {
+                return Center(
+                  child: Text(
+                    _pendingOnly
+                        ? 'No pending repairs.'
+                        : 'No fault reports yet.',
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                itemCount: documents.length,
+                itemBuilder: (context, index) {
+                  final document = documents[index];
+                  final data = document.data();
+                  final repaired = boolFromFirestore(data['repaired']);
+                  final updating = _updatingReportIds.contains(document.id);
+                  final room = stringFromFirestore(
+                    data['roomName'],
+                    fallback: 'Unknown room',
+                  );
+                  final pc = stringFromFirestore(
+                    data['pcId'],
+                    fallback: 'Unknown PC',
+                  );
+                  final issue = readableFirestoreValue(
+                    data['issue'] ??
+                        data['issues'] ??
+                        data['detectedIssues'] ??
+                        data['faultType'],
+                  );
+                  final details = readableFirestoreValue(
+                    data['details'] ?? data['description'] ?? data['comment'],
+                  );
+
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: repaired
+                              ? Colors.green.withOpacity(0.14)
+                              : Colors.orange.withOpacity(0.14),
+                          child: Icon(
+                            repaired ? Icons.check_circle : Icons.build,
+                            color: repaired ? Colors.green : Colors.orange,
+                          ),
+                        ),
+                        title: Text('$room - $pc'),
+                        subtitle: Text(
+                          [
+                            if (issue.isNotEmpty) issue,
+                            if (details.isNotEmpty) details,
+                            'Reported: '
+                                '${formatFirestoreTimestamp(data['createdAt'])}',
+                            if (repaired)
+                              'Repaired: '
+                                  '${formatFirestoreTimestamp(data['repairedAt'])}',
+                            if (repaired &&
+                                stringFromFirestore(
+                                  data['technicianNotes'],
+                                ).isNotEmpty)
+                              'Action: ${data['technicianNotes']}',
+                          ].join('\n'),
+                        ),
+                        trailing: repaired
+                            ? const Chip(
+                                avatar: Icon(Icons.check, size: 18),
+                                label: Text('Repaired'),
+                              )
+                            : FilledButton.icon(
+                                onPressed:
+                                    updating ? null : () => _markRepaired(document),
+                                icon: updating
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.build, size: 18),
+                                label: Text(
+                                  updating ? 'Saving...' : 'Mark Repaired',
+                                ),
+                              ),
+                        isThreeLine: true,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
+}
+
+String _cleanError(Object error) {
+  return error.toString().replaceFirst('Exception:', '').trim();
 }

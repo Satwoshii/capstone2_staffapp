@@ -16,30 +16,49 @@ class FirebaseUserService {
     required String email,
     required String password,
   }) async {
-    final credential = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-
-    final uid = credential.user!.uid;
-    final doc = await _firestore.collection('users').doc(uid).get();
-
-    if (!doc.exists) {
-      throw Exception('User profile does not exist in Firestore users/$uid.');
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty || password.isEmpty) {
+      throw Exception('Enter your staff email and password.');
     }
 
-    final user = AppUser.fromFirestore(doc);
-    final role = user.role.trim().toLowerCase();
+    try {
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: cleanEmail,
+        password: password,
+      );
 
-    if (!user.active) {
-      throw Exception('This account is disabled.');
+      final authenticatedUser = credential.user;
+      if (authenticatedUser == null) {
+        throw Exception('Firebase did not return an authenticated user.');
+      }
+
+      try {
+        final document =
+            await _firestore.collection('users').doc(authenticatedUser.uid).get();
+
+        if (!document.exists) {
+          throw Exception('This account has no Firestore user profile.');
+        }
+
+        final user = AppUser.fromFirestore(document);
+        final role = user.role;
+
+        if (!user.active) {
+          throw Exception('This account is disabled.');
+        }
+
+        if (role != 'admin' && role != 'itso') {
+          throw Exception('Access denied. Use an ITSO or Admin account.');
+        }
+
+        return user;
+      } catch (_) {
+        await _auth.signOut();
+        rethrow;
+      }
+    } on FirebaseAuthException catch (error) {
+      throw Exception(_friendlyAuthMessage(error));
     }
-
-    if (role != 'admin' && role != 'itso') {
-      throw Exception('Access denied. Staff app is only for ITSO/Admin.');
-    }
-
-    return user;
   }
 
   static Future<void> createAccount({
@@ -50,7 +69,7 @@ class FirebaseUserService {
     String? studentId,
     bool active = true,
   }) async {
-    final cleanEmail = email.trim();
+    final cleanEmail = email.trim().toLowerCase();
     final cleanRole = role.trim().toLowerCase();
     final cleanDisplayName = displayName.trim();
     final cleanStudentId = studentId?.trim();
@@ -67,30 +86,44 @@ class FirebaseUserService {
       throw Exception('Display name is required.');
     }
 
-    if (cleanRole != 'admin' && cleanRole != 'itso' && cleanRole != 'student') {
+    if (!AppUser.allowedAccountRoles.contains(cleanRole)) {
       throw Exception('Role must be admin, itso, or student.');
     }
 
-    if (cleanRole == 'student' && (cleanStudentId == null || cleanStudentId.isEmpty)) {
+    if (cleanRole == 'student' &&
+        (cleanStudentId == null || cleanStudentId.isEmpty)) {
       throw Exception('Student ID is required for student accounts.');
     }
 
-    final secondaryAppName = 'accountCreator_${DateTime.now().microsecondsSinceEpoch}';
+    await _ensureUniqueProfile(
+      email: cleanEmail,
+      displayName: cleanDisplayName,
+      studentId: cleanRole == 'student' ? cleanStudentId : null,
+    );
+
+    final secondaryAppName =
+        'accountCreator_${DateTime.now().microsecondsSinceEpoch}';
     final secondaryApp = await Firebase.initializeApp(
       name: secondaryAppName,
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+    User? createdUser;
+    var profileCreated = false;
 
     try {
-      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
       final credential = await secondaryAuth.createUserWithEmailAndPassword(
         email: cleanEmail,
         password: password,
       );
 
-      final uid = credential.user!.uid;
-      await credential.user!.updateDisplayName(cleanDisplayName);
+      createdUser = credential.user;
+      if (createdUser == null) {
+        throw Exception('Firebase did not return the newly created user.');
+      }
 
+      final uid = createdUser.uid;
+      await createdUser.updateDisplayName(cleanDisplayName);
       final passwordHash = sha256.convert(utf8.encode(password)).toString();
 
       await _firestore.collection('users').doc(uid).set({
@@ -101,20 +134,119 @@ class FirebaseUserService {
         'active': active,
         'studentId': cleanRole == 'student' ? cleanStudentId : '',
         'passwordHash': cleanRole == 'student' ? passwordHash : '',
+        'emailLower': cleanEmail,
+        'displayNameLower': cleanDisplayName.toLowerCase(),
+        'studentIdNormalized':
+            cleanRole == 'student' ? cleanStudentId!.toLowerCase() : '',
         'department': 'SEAT',
         'program': cleanRole == 'student' ? 'BSIT-MWA' : '',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'createdBy': _auth.currentUser?.uid ?? '',
-      }, SetOptions(merge: true));
-
-      await secondaryAuth.signOut();
+      });
+      profileCreated = true;
+    } on FirebaseAuthException catch (error) {
+      final orphanedUser = createdUser;
+      if (!profileCreated && orphanedUser != null) {
+        await _deleteCreatedUserQuietly(orphanedUser);
+      }
+      throw Exception(_friendlyAuthMessage(error));
+    } catch (_) {
+      final orphanedUser = createdUser;
+      if (!profileCreated && orphanedUser != null) {
+        await _deleteCreatedUserQuietly(orphanedUser);
+      }
+      rethrow;
     } finally {
-      await secondaryApp.delete();
+      try {
+        await secondaryAuth.signOut();
+      } catch (_) {
+        // Deleting the temporary Firebase app also clears its Auth session.
+      }
+      try {
+        await secondaryApp.delete();
+      } catch (_) {
+        // Cleanup must not make a successfully created account look like a failure.
+      }
     }
   }
 
   static Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  static Future<void> _ensureUniqueProfile({
+    required String email,
+    required String displayName,
+    String? studentId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('role', whereIn: AppUser.firestoreAccountRoleValues)
+        .get();
+
+    final normalizedName = displayName.toLowerCase();
+    final normalizedStudentId = studentId?.toLowerCase();
+
+    for (final document in snapshot.docs) {
+      final data = document.data();
+      final existingEmail =
+          (data['emailLower'] ?? data['email'] ?? '').toString().trim().toLowerCase();
+      final existingName = (data['displayNameLower'] ??
+              data['displayName'] ??
+              '')
+          .toString()
+          .trim()
+          .toLowerCase();
+      final existingStudentId = (data['studentIdNormalized'] ??
+              data['studentId'] ??
+              '')
+          .toString()
+          .trim()
+          .toLowerCase();
+
+      if (existingEmail == email) {
+        throw Exception('An account with this email already exists.');
+      }
+      if (existingName == normalizedName) {
+        throw Exception('An account with this display name already exists.');
+      }
+      if (normalizedStudentId != null &&
+          normalizedStudentId.isNotEmpty &&
+          existingStudentId == normalizedStudentId) {
+        throw Exception('An account with this Student ID already exists.');
+      }
+    }
+  }
+
+  static Future<void> _deleteCreatedUserQuietly(User user) async {
+    try {
+      await user.delete();
+    } catch (_) {
+      // The original account-creation error is more useful to the caller.
+    }
+  }
+
+  static String _friendlyAuthMessage(FirebaseAuthException error) {
+    switch (error.code) {
+      case 'invalid-email':
+        return 'The email address is not valid.';
+      case 'invalid-credential':
+      case 'user-not-found':
+      case 'wrong-password':
+        return 'Incorrect email or password.';
+      case 'user-disabled':
+        return 'This Firebase Authentication account is disabled.';
+      case 'email-already-in-use':
+        return 'An account with this email already exists.';
+      case 'weak-password':
+        return 'Use a stronger password with at least 6 characters.';
+      case 'network-request-failed':
+        return 'Cannot connect to Firebase. Check the internet connection.';
+      case 'too-many-requests':
+        return 'Too many attempts. Wait a moment and try again.';
+      default:
+        return error.message ?? 'Firebase Authentication failed.';
+    }
   }
 }
