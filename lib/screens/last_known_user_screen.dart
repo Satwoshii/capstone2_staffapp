@@ -1,7 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../utils/firestore_helpers.dart';
+import '../models/last_known_user_record.dart';
+import '../services/staff_service.dart';
+import '../utils/value_helpers.dart';
+import '../widgets/message_state.dart';
 
 class LastKnownUserScreen extends StatefulWidget {
   const LastKnownUserScreen({super.key});
@@ -12,11 +16,28 @@ class LastKnownUserScreen extends StatefulWidget {
 
 class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
   final _searchController = TextEditingController();
+  Future<List<LastKnownUserRecord>>? _future;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _refresh());
+  }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {
+      _future = StaffService.instance.listLastKnownUsers();
+    });
   }
 
   @override
@@ -25,140 +46,97 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: TextField(
-            controller: _searchController,
-            decoration: const InputDecoration(
-              labelText: 'Search room, PC, student, or email',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onChanged: (_) => setState(() {}),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    labelText: 'Search room, PC, student, or email',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: _refresh,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
           ),
         ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('login_logs')
-                .snapshots(),
+          child: FutureBuilder<List<LastKnownUserRecord>>(
+            future: _future,
             builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(
-                  child: Text(
-                    'Could not load login records: ${snapshot.error}',
-                  ),
-                );
-              }
-              if (!snapshot.hasData) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-
-              final latestByPc = <String, _LoginRecord>{};
-              for (final document in snapshot.data!.docs) {
-                final data = document.data();
-                final room = stringFromFirestore(data['roomName']);
-                final pc = stringFromFirestore(data['pcId']);
-                final key =
-                    room.isEmpty && pc.isEmpty ? document.id : '${room}_$pc';
-                final loginTime =
-                    data['loginTime'] ?? data['createdAt'] ?? data['timestamp'];
-                final candidate = _LoginRecord(
-                  data: data,
-                  loginTime: loginTime,
+              if (snapshot.hasError) {
+                return MessageState(
+                  icon: Icons.wifi_off,
+                  title: 'Could not load login records',
+                  message: cleanError(snapshot.error!),
+                  onRetry: _refresh,
                 );
-                final existing = latestByPc[key];
-
-                if (existing == null ||
-                    compareFirestoreTimestamps(
-                          candidate.loginTime,
-                          existing.loginTime,
-                        ) >
-                        0) {
-                  latestByPc[key] = candidate;
-                }
               }
-
               final search = _searchController.text.trim().toLowerCase();
-              final rows = latestByPc.values.where((record) {
+              final records = (snapshot.data ?? const <LastKnownUserRecord>[])
+                  .where((record) {
                 if (search.isEmpty) return true;
-                final data = record.data;
-                final searchable = [
-                  data['roomName'],
-                  data['pcId'],
-                  data['displayName'],
-                  data['studentName'],
-                  data['email'],
-                  data['studentEmail'],
-                  data['studentId'],
-                ].map((value) => value?.toString() ?? '').join(' ').toLowerCase();
-                return searchable.contains(search);
+                return [
+                  record.roomName,
+                  record.pcId,
+                  record.displayName,
+                  record.email ?? '',
+                  record.studentId ?? '',
+                  record.status,
+                ].join(' ').toLowerCase().contains(search);
               }).toList()
                 ..sort((a, b) {
-                  final roomComparison = stringFromFirestore(
-                    a.data['roomName'],
-                  ).compareTo(
-                    stringFromFirestore(b.data['roomName']),
-                  );
-                  if (roomComparison != 0) return roomComparison;
-                  return stringFromFirestore(a.data['pcId']).compareTo(
-                    stringFromFirestore(b.data['pcId']),
-                  );
+                  final room = a.roomName.compareTo(b.roomName);
+                  return room != 0 ? room : a.pcId.compareTo(b.pcId);
                 });
 
-              if (rows.isEmpty) {
-                return const Center(
-                  child: Text('No matching login records.'),
+              if (records.isEmpty) {
+                return const MessageState(
+                  icon: Icons.person_pin_circle_outlined,
+                  title: 'No matching login records',
+                  message: 'Student login activity will appear after synchronization.',
                 );
               }
 
-              return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                itemCount: rows.length,
-                itemBuilder: (context, index) {
-                  final record = rows[index];
-                  final data = record.data;
-                  final room = stringFromFirestore(
-                    data['roomName'],
-                    fallback: 'Unknown room',
-                  );
-                  final pc = stringFromFirestore(
-                    data['pcId'],
-                    fallback: 'Unknown PC',
-                  );
-                  final name = stringFromFirestore(
-                    data['displayName'] ?? data['studentName'],
-                    fallback: stringFromFirestore(
-                      data['email'] ?? data['studentEmail'],
-                      fallback: 'Unknown user',
-                    ),
-                  );
-                  final email = stringFromFirestore(
-                    data['email'] ?? data['studentEmail'],
-                  );
-                  final studentId = stringFromFirestore(data['studentId']);
-                  final status = stringFromFirestore(
-                    data['status'],
-                    fallback: 'logged in',
-                  );
-
-                  return Card(
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.person_pin),
+              return RefreshIndicator(
+                onRefresh: () async => _refresh(),
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  itemCount: records.length,
+                  itemBuilder: (context, index) {
+                    final record = records[index];
+                    return Card(
+                      child: ListTile(
+                        leading: const CircleAvatar(child: Icon(Icons.person_pin)),
+                        title: Text('${record.roomName} - ${record.pcId}'),
+                        subtitle: Text(
+                          [
+                            'Last user: ${record.displayName}',
+                            if ((record.email ?? '').isNotEmpty &&
+                                record.email != record.displayName)
+                              record.email!,
+                            if ((record.studentId ?? '').isNotEmpty)
+                              'Student ID: ${record.studentId}',
+                            'Login: ${formatDateTime(record.loginTime)}',
+                            if (record.logoutTime != null)
+                              'Logout: ${formatDateTime(record.logoutTime)}',
+                          ].join('\n'),
+                        ),
+                        trailing: Chip(label: Text(record.status.toUpperCase())),
+                        isThreeLine: true,
                       ),
-                      title: Text('$room - $pc'),
-                      subtitle: Text(
-                        [
-                          'Last user: $name',
-                          if (email.isNotEmpty && email != name) email,
-                          if (studentId.isNotEmpty) 'Student ID: $studentId',
-                          'Login: '
-                              '${formatFirestoreTimestamp(record.loginTime)}',
-                        ].join('\n'),
-                      ),
-                      trailing: Chip(label: Text(status.toUpperCase())),
-                      isThreeLine: true,
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -166,14 +144,4 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
       ],
     );
   }
-}
-
-class _LoginRecord {
-  final Map<String, dynamic> data;
-  final dynamic loginTime;
-
-  const _LoginRecord({
-    required this.data,
-    required this.loginTime,
-  });
 }

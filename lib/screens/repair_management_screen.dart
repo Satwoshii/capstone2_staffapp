@@ -1,8 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
-import '../utils/firestore_helpers.dart';
+import '../models/fault_report.dart';
+import '../services/staff_service.dart';
+import '../utils/value_helpers.dart';
+import '../widgets/message_state.dart';
 
 class RepairManagementScreen extends StatefulWidget {
   final AppUser user;
@@ -10,125 +14,131 @@ class RepairManagementScreen extends StatefulWidget {
   const RepairManagementScreen({super.key, required this.user});
 
   @override
-  State<RepairManagementScreen> createState() =>
-      _RepairManagementScreenState();
+  State<RepairManagementScreen> createState() => _RepairManagementScreenState();
 }
 
 class _RepairManagementScreenState extends State<RepairManagementScreen> {
-  final _updatingReportIds = <String>{};
-  bool _pendingOnly = true;
+  final _searchController = TextEditingController();
+  final _updating = <String>{};
+  Future<List<FaultReport>>? _future;
+  Timer? _timer;
+  bool _showRepaired = false;
 
-  Future<void> _markRepaired(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    if (_updatingReportIds.contains(document.id)) return;
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _refresh());
+  }
 
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {
+      _future = StaffService.instance.listFaultReports();
+    });
+  }
+
+  Future<void> _markRepaired(FaultReport report) async {
     final notesController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    bool saving = false;
 
-    final notes = await showDialog<String>(
+    await showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Mark as Repaired'),
-          content: SizedBox(
-            width: 460,
-            child: Form(
-              key: formKey,
-              child: TextFormField(
-                controller: notesController,
-                autofocus: true,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Technician notes',
-                  hintText: 'Describe the action taken or part replaced.',
-                  alignLabelWithHint: true,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> save() async {
+              if (saving || !(formKey.currentState?.validate() ?? false)) return;
+              setDialogState(() => saving = true);
+              setState(() => _updating.add(report.id));
+              try {
+                await StaffService.instance.markRepaired(
+                  reportId: report.id,
+                  notes: notesController.text,
+                );
+                if (!dialogContext.mounted || !mounted) return;
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('Report marked as repaired.')),
+                );
+                _refresh();
+              } catch (error) {
+                if (dialogContext.mounted) {
+                  setDialogState(() => saving = false);
+                }
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(content: Text(cleanError(error))),
+                  );
+                }
+              } finally {
+                if (mounted) setState(() => _updating.remove(report.id));
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Mark Report Repaired'),
+              content: SizedBox(
+                width: 480,
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${report.roomName} - ${report.pcId}'),
+                      const SizedBox(height: 4),
+                      Text(report.issue),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: notesController,
+                        enabled: !saving,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Technician Notes / Action Taken',
+                          alignLabelWithHint: true,
+                          prefixIcon: Icon(Icons.description_outlined),
+                        ),
+                        validator: (value) => (value ?? '').trim().isEmpty
+                            ? 'Enter the repair action or notes.'
+                            : null,
+                      ),
+                    ],
+                  ),
                 ),
-                validator: (value) {
-                  if ((value ?? '').trim().isEmpty) {
-                    return 'Technician notes are required.';
-                  }
-                  return null;
-                },
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                if (!(formKey.currentState?.validate() ?? false)) return;
-                Navigator.of(dialogContext).pop(notesController.text.trim());
-              },
-              icon: const Icon(Icons.check),
-              label: const Text('Save Repair'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  onPressed: saving ? null : save,
+                  icon: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check),
+                  label: Text(saving ? 'Saving...' : 'Confirm Repair'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
-
     notesController.dispose();
-    if (notes == null) return;
-
-    setState(() => _updatingReportIds.add(document.id));
-
-    try {
-      final firestore = FirebaseFirestore.instance;
-      final maintenanceReference =
-          firestore.collection('maintenance_logs').doc();
-      final data = document.data();
-      final batch = firestore.batch();
-
-      batch.set(
-        document.reference,
-        {
-          'repaired': true,
-          'status': 'repaired',
-          'repairedAt': FieldValue.serverTimestamp(),
-          'repairedByUid': widget.user.uid,
-          'technicianName': widget.user.displayName.isEmpty
-              ? widget.user.email
-              : widget.user.displayName,
-          'technicianNotes': notes,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-
-      batch.set(maintenanceReference, {
-        'faultReportId': document.id,
-        'roomName': data['roomName'],
-        'pcId': data['pcId'],
-        'technicianUid': widget.user.uid,
-        'technicianEmail': widget.user.email,
-        'technicianName': widget.user.displayName.isEmpty
-            ? widget.user.email
-            : widget.user.displayName,
-        'notes': notes,
-        'repairDate': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      await batch.commit();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Repair saved successfully.')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save repair: ${_cleanError(error)}')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _updatingReportIds.remove(document.id));
-      }
-    }
   }
 
   @override
@@ -138,122 +148,128 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
           child: Card(
-            child: SwitchListTile(
-              value: _pendingOnly,
-              title: const Text('Show pending repairs only'),
-              subtitle: const Text(
-                'Turn this off to include completed maintenance records.',
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: const InputDecoration(
+                        labelText: 'Search room, PC, issue, or student',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilterChip(
+                    selected: _showRepaired,
+                    label: const Text('Include repaired'),
+                    avatar: const Icon(Icons.history, size: 18),
+                    onSelected: (value) => setState(() => _showRepaired = value),
+                  ),
+                  IconButton(
+                    tooltip: 'Refresh',
+                    onPressed: _refresh,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
               ),
-              secondary: const Icon(Icons.filter_alt_outlined),
-              onChanged: (value) => setState(() => _pendingOnly = value),
             ),
           ),
         ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('fault_reports')
-                .snapshots(),
+          child: FutureBuilder<List<FaultReport>>(
+            future: _future,
             builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(
-                  child: Text(
-                    'Could not load fault reports: '
-                    '${_cleanError(snapshot.error!)}',
-                  ),
-                );
-              }
-              if (!snapshot.hasData) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-
-              final documents = snapshot.data!.docs.where((document) {
-                final repaired = boolFromFirestore(
-                  document.data()['repaired'],
-                );
-                return !_pendingOnly || !repaired;
-              }).toList()
-                ..sort(
-                  (a, b) => compareFirestoreTimestamps(
-                    b.data()['createdAt'],
-                    a.data()['createdAt'],
-                  ),
-                );
-
-              if (documents.isEmpty) {
-                return Center(
-                  child: Text(
-                    _pendingOnly
-                        ? 'No pending repairs.'
-                        : 'No fault reports yet.',
-                  ),
+              if (snapshot.hasError) {
+                return MessageState(
+                  icon: Icons.wifi_off,
+                  title: 'Could not load repairs',
+                  message: cleanError(snapshot.error!),
+                  onRetry: _refresh,
                 );
               }
 
-              return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                itemCount: documents.length,
-                itemBuilder: (context, index) {
-                  final document = documents[index];
-                  final data = document.data();
-                  final repaired = boolFromFirestore(data['repaired']);
-                  final updating = _updatingReportIds.contains(document.id);
-                  final room = stringFromFirestore(
-                    data['roomName'],
-                    fallback: 'Unknown room',
-                  );
-                  final pc = stringFromFirestore(
-                    data['pcId'],
-                    fallback: 'Unknown PC',
-                  );
-                  final issue = readableFirestoreValue(
-                    data['issue'] ??
-                        data['issues'] ??
-                        data['detectedIssues'] ??
-                        data['faultType'],
-                  );
-                  final details = readableFirestoreValue(
-                    data['details'] ?? data['description'] ?? data['comment'],
-                  );
+              final search = _searchController.text.trim().toLowerCase();
+              final reports = (snapshot.data ?? const <FaultReport>[])
+                  .where((report) {
+                if (!_showRepaired && report.repaired) return false;
+                if (search.isEmpty) return true;
+                return [
+                  report.roomName,
+                  report.pcId,
+                  report.issue,
+                  report.details,
+                  report.studentEmail ?? '',
+                  report.severity,
+                ].join(' ').toLowerCase().contains(search);
+              }).toList()
+                ..sort((a, b) {
+                  if (a.repaired != b.repaired) return a.repaired ? 1 : -1;
+                  final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+                  final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+                  return bTime.compareTo(aTime);
+                });
 
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
+              if (reports.isEmpty) {
+                return const MessageState(
+                  icon: Icons.build_circle_outlined,
+                  title: 'No matching repair reports',
+                  message: 'Open fault reports from Student PCs will appear here.',
+                );
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async => _refresh(),
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  itemCount: reports.length,
+                  itemBuilder: (context, index) {
+                    final report = reports[index];
+                    final updating = _updating.contains(report.id);
+                    return Card(
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: repaired
-                              ? Colors.green.withOpacity(0.14)
-                              : Colors.orange.withOpacity(0.14),
+                          backgroundColor: (report.repaired
+                                  ? Colors.green
+                                  : _severityColor(report.severity))
+                              .withOpacity(0.14),
                           child: Icon(
-                            repaired ? Icons.check_circle : Icons.build,
-                            color: repaired ? Colors.green : Colors.orange,
+                            report.repaired ? Icons.check_circle : Icons.build,
+                            color: report.repaired
+                                ? Colors.green
+                                : _severityColor(report.severity),
                           ),
                         ),
-                        title: Text('$room - $pc'),
+                        title: Text('${report.roomName} - ${report.pcId}'),
                         subtitle: Text(
                           [
-                            if (issue.isNotEmpty) issue,
-                            if (details.isNotEmpty) details,
-                            'Reported: '
-                                '${formatFirestoreTimestamp(data['createdAt'])}',
-                            if (repaired)
-                              'Repaired: '
-                                  '${formatFirestoreTimestamp(data['repairedAt'])}',
-                            if (repaired &&
-                                stringFromFirestore(
-                                  data['technicianNotes'],
-                                ).isNotEmpty)
-                              'Action: ${data['technicianNotes']}',
+                            report.issue,
+                            if (report.details.isNotEmpty) report.details,
+                            'Severity: ${report.severity.toUpperCase()}',
+                            if ((report.studentEmail ?? '').isNotEmpty)
+                              'Student: ${report.studentEmail}',
+                            'Reported: ${formatDateTime(report.createdAt)}',
+                            if (report.repaired)
+                              'Repaired: ${formatDateTime(report.repairedAt)}',
+                            if ((report.technicianNotes ?? '').isNotEmpty)
+                              'Action: ${report.technicianNotes}',
                           ].join('\n'),
                         ),
-                        trailing: repaired
+                        trailing: report.repaired
                             ? const Chip(
                                 avatar: Icon(Icons.check, size: 18),
                                 label: Text('Repaired'),
                               )
                             : FilledButton.icon(
-                                onPressed:
-                                    updating ? null : () => _markRepaired(document),
+                                onPressed: updating
+                                    ? null
+                                    : () => _markRepaired(report),
                                 icon: updating
                                     ? const SizedBox(
                                         width: 16,
@@ -263,15 +279,13 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                                         ),
                                       )
                                     : const Icon(Icons.build, size: 18),
-                                label: Text(
-                                  updating ? 'Saving...' : 'Mark Repaired',
-                                ),
+                                label: const Text('Mark Repaired'),
                               ),
                         isThreeLine: true,
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -281,6 +295,15 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
   }
 }
 
-String _cleanError(Object error) {
-  return error.toString().replaceFirst('Exception:', '').trim();
+Color _severityColor(String value) {
+  switch (value.trim().toLowerCase()) {
+    case 'critical':
+    case 'high':
+      return Colors.red;
+    case 'low':
+    case 'minor':
+      return Colors.amber.shade800;
+    default:
+      return Colors.orange;
+  }
 }

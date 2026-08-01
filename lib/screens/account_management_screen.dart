@@ -1,9 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
-import '../services/firebase_user_service.dart';
-import '../utils/firestore_helpers.dart';
+import '../services/staff_service.dart';
+import '../utils/value_helpers.dart';
+import '../widgets/message_state.dart';
 
 class AccountManagementScreen extends StatefulWidget {
   final String currentUserId;
@@ -21,47 +23,150 @@ class AccountManagementScreen extends StatefulWidget {
 class _AccountManagementScreenState extends State<AccountManagementScreen> {
   final _searchController = TextEditingController();
   final _busyUserIds = <String>{};
-
+  Timer? _timer;
+  Future<List<AppUser>>? _future;
   String _roleFilter = 'all';
 
   @override
+  void initState() {
+    super.initState();
+    _refresh();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+  }
+
+  @override
   void dispose() {
+    _timer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _toggleActive({
-    required String uid,
-    required bool currentlyActive,
-  }) async {
-    if (uid == widget.currentUserId || _busyUserIds.contains(uid)) return;
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {
+      _future = StaffService.instance.listAccounts();
+    });
+  }
 
-    setState(() => _busyUserIds.add(uid));
-
+  Future<void> _toggleActive(AppUser user) async {
+    if (user.uid == widget.currentUserId || _busyUserIds.contains(user.uid)) {
+      return;
+    }
+    setState(() => _busyUserIds.add(user.uid));
     try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).update({
-        'active': !currentlyActive,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
+      await StaffService.instance.setAccountActive(
+        uid: user.uid,
+        active: !user.active,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            currentlyActive ? 'Account disabled.' : 'Account enabled.',
-          ),
+          content: Text(user.active ? 'Account disabled.' : 'Account enabled.'),
         ),
       );
+      _refresh();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_cleanError(error))),
+        SnackBar(content: Text(cleanError(error))),
       );
     } finally {
-      if (mounted) {
-        setState(() => _busyUserIds.remove(uid));
-      }
+      if (mounted) setState(() => _busyUserIds.remove(user.uid));
     }
+  }
+
+  Future<void> _showResetPasswordDialog(AppUser user) async {
+    final controller = TextEditingController();
+    final key = GlobalKey<FormState>();
+    bool saving = false;
+    bool obscure = true;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> save() async {
+              if (saving || !(key.currentState?.validate() ?? false)) return;
+              setDialogState(() => saving = true);
+              try {
+                await StaffService.instance.resetPassword(
+                  uid: user.uid,
+                  password: controller.text,
+                );
+                if (!dialogContext.mounted || !mounted) return;
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(
+                    content: Text('Password reset for ${user.displayName}.'),
+                  ),
+                );
+              } catch (error) {
+                if (dialogContext.mounted) {
+                  setDialogState(() => saving = false);
+                }
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(content: Text(cleanError(error))),
+                  );
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Reset Password'),
+              content: SizedBox(
+                width: 420,
+                child: Form(
+                  key: key,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Account: ${user.displayName}'),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: controller,
+                        enabled: !saving,
+                        obscureText: obscure,
+                        decoration: InputDecoration(
+                          labelText: 'New Password',
+                          prefixIcon: const Icon(Icons.lock_reset),
+                          suffixIcon: IconButton(
+                            onPressed: saving
+                                ? null
+                                : () => setDialogState(() => obscure = !obscure),
+                            icon: Icon(
+                              obscure ? Icons.visibility : Icons.visibility_off,
+                            ),
+                          ),
+                        ),
+                        validator: (value) => (value ?? '').length < 8
+                            ? 'Use at least 8 characters.'
+                            : null,
+                        onFieldSubmitted: (_) => save(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: saving ? null : save,
+                  child: Text(saving ? 'Saving...' : 'Reset'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
   }
 
   Future<void> _showAddAccountDialog() async {
@@ -70,7 +175,6 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     final studentIdController = TextEditingController();
-
     String role = 'student';
     bool active = true;
     bool saving = false;
@@ -81,40 +185,34 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (dialogBuildContext, setDialogState) {
-            Future<void> saveAccount() async {
-              if (saving || !(formKey.currentState?.validate() ?? false)) {
-                return;
-              }
-
+          builder: (context, setDialogState) {
+            Future<void> save() async {
+              if (saving || !(formKey.currentState?.validate() ?? false)) return;
               setDialogState(() => saving = true);
-
               try {
-                await FirebaseUserService.createAccount(
+                await StaffService.instance.createAccount(
                   displayName: displayNameController.text,
                   email: emailController.text,
                   password: passwordController.text,
                   role: role,
-                  studentId:
-                      role == 'student' ? studentIdController.text : null,
+                  studentId: role == 'student' ? studentIdController.text : null,
                   active: active,
                 );
-
-                if (!mounted || !dialogContext.mounted) return;
-                Navigator.of(dialogContext).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Account created successfully.'),
-                  ),
+                if (!dialogContext.mounted || !mounted) return;
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('Account created successfully.')),
                 );
+                _refresh();
               } catch (error) {
-                if (!mounted) return;
                 if (dialogContext.mounted) {
                   setDialogState(() => saving = false);
                 }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(_cleanError(error))),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(content: Text(cleanError(error))),
+                  );
+                }
               }
             }
 
@@ -132,24 +230,19 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         TextFormField(
                           controller: displayNameController,
                           enabled: !saving,
-                          textInputAction: TextInputAction.next,
                           decoration: const InputDecoration(
                             labelText: 'Display Name',
                             prefixIcon: Icon(Icons.badge_outlined),
                           ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Display name is required.';
-                            }
-                            return null;
-                          },
+                          validator: (value) => (value ?? '').trim().isEmpty
+                              ? 'Display name is required.'
+                              : null,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: emailController,
                           enabled: !saving,
                           keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
                           decoration: const InputDecoration(
                             labelText: 'Email',
                             prefixIcon: Icon(Icons.email_outlined),
@@ -157,10 +250,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           validator: (value) {
                             final email = (value ?? '').trim();
                             if (email.isEmpty) return 'Email is required.';
-                            if (!email.contains('@') ||
-                                !email.split('@').last.contains('.')) {
-                              return 'Enter a valid email address.';
-                            }
+                            if (!email.contains('@')) return 'Enter a valid email.';
                             return null;
                           },
                         ),
@@ -169,22 +259,15 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           controller: passwordController,
                           enabled: !saving,
                           obscureText: obscurePassword,
-                          textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
                             labelText: 'Temporary Password',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
-                              tooltip: obscurePassword
-                                  ? 'Show password'
-                                  : 'Hide password',
                               onPressed: saving
                                   ? null
-                                  : () {
-                                      setDialogState(
-                                        () => obscurePassword =
-                                            !obscurePassword,
-                                      );
-                                    },
+                                  : () => setDialogState(
+                                        () => obscurePassword = !obscurePassword,
+                                      ),
                               icon: Icon(
                                 obscurePassword
                                     ? Icons.visibility
@@ -192,12 +275,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                               ),
                             ),
                           ),
-                          validator: (value) {
-                            if ((value ?? '').length < 6) {
-                              return 'Use at least 6 characters.';
-                            }
-                            return null;
-                          },
+                          validator: (value) => (value ?? '').length < 8
+                              ? 'Use at least 8 characters.'
+                              : null,
                         ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
@@ -211,20 +291,14 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                               value: 'student',
                               child: Text('Student'),
                             ),
-                            DropdownMenuItem(
-                              value: 'itso',
-                              child: Text('ITSO'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'admin',
-                              child: Text('Admin'),
-                            ),
+                            DropdownMenuItem(value: 'admin', child: Text('Admin')),
                           ],
                           onChanged: saving
                               ? null
                               : (value) {
-                                  if (value == null) return;
-                                  setDialogState(() => role = value);
+                                  if (value != null) {
+                                    setDialogState(() => role = value);
+                                  }
                                 },
                         ),
                         if (role == 'student') ...[
@@ -232,34 +306,26 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           TextFormField(
                             controller: studentIdController,
                             enabled: !saving,
-                            textInputAction: TextInputAction.done,
                             decoration: const InputDecoration(
                               labelText: 'Student ID',
                               prefixIcon: Icon(Icons.numbers),
                             ),
-                            validator: (value) {
-                              if (role == 'student' &&
-                                  (value ?? '').trim().isEmpty) {
-                                return 'Student ID is required.';
-                              }
-                              return null;
-                            },
-                            onFieldSubmitted: (_) => saveAccount(),
+                            validator: (value) => role == 'student' &&
+                                    (value ?? '').trim().isEmpty
+                                ? 'Student ID is required.'
+                                : null,
                           ),
                         ],
-                        const SizedBox(height: 8),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           value: active,
-                          title: const Text('Active account'),
-                          subtitle: const Text(
-                            'Inactive accounts cannot sign in.',
-                          ),
                           onChanged: saving
                               ? null
-                              : (value) {
-                                  setDialogState(() => active = value);
-                                },
+                              : (value) => setDialogState(() => active = value),
+                          title: const Text('Account active'),
+                          subtitle: const Text(
+                            'Inactive accounts cannot sign in or sync offline login.',
+                          ),
                         ),
                       ],
                     ),
@@ -268,12 +334,11 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      saving ? null : () => Navigator.of(dialogContext).pop(),
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 FilledButton.icon(
-                  onPressed: saving ? null : saveAccount,
+                  onPressed: saving ? null : save,
                   icon: saving
                       ? const SizedBox(
                           width: 16,
@@ -281,7 +346,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.person_add),
-                  label: Text(saving ? 'Creating...' : 'Create Account'),
+                  label: Text(saving ? 'Creating...' : 'Create'),
                 ),
               ],
             );
@@ -311,11 +376,16 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                     children: [
                       const Expanded(
                         child: Text(
-                          'Manage Student, ITSO, and Admin accounts. '
-                          'Workstation profiles are kept out of this list.',
+                          'Accounts are saved in the central MariaDB database. '
+                          'Active students become available to registered Student PCs.',
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      IconButton(
+                        tooltip: 'Refresh',
+                        onPressed: _refresh,
+                        icon: const Icon(Icons.refresh),
+                      ),
+                      const SizedBox(width: 8),
                       FilledButton.icon(
                         onPressed: _showAddAccountDialog,
                         icon: const Icon(Icons.person_add),
@@ -341,30 +411,19 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         width: 170,
                         child: DropdownButtonFormField<String>(
                           value: _roleFilter,
-                          decoration: const InputDecoration(
-                            labelText: 'Role',
-                          ),
+                          decoration: const InputDecoration(labelText: 'Role'),
                           items: const [
-                            DropdownMenuItem(
-                              value: 'all',
-                              child: Text('All roles'),
-                            ),
+                            DropdownMenuItem(value: 'all', child: Text('All roles')),
                             DropdownMenuItem(
                               value: 'student',
                               child: Text('Student'),
                             ),
-                            DropdownMenuItem(
-                              value: 'itso',
-                              child: Text('ITSO'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'admin',
-                              child: Text('Admin'),
-                            ),
+                            DropdownMenuItem(value: 'admin', child: Text('Admin')),
                           ],
                           onChanged: (value) {
-                            if (value == null) return;
-                            setState(() => _roleFilter = value);
+                            if (value != null) {
+                              setState(() => _roleFilter = value);
+                            }
                           },
                         ),
                       ),
@@ -376,143 +435,107 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           ),
         ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .where(
-                  'role',
-                  whereIn: AppUser.firestoreAccountRoleValues,
-                )
-                .snapshots(),
+          child: FutureBuilder<List<AppUser>>(
+            future: _future,
             builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
               if (snapshot.hasError) {
-                return _MessageState(
-                  icon: Icons.cloud_off,
+                return MessageState(
+                  icon: Icons.wifi_off,
                   title: 'Could not load accounts',
-                  message: _cleanError(snapshot.error!),
+                  message: cleanError(snapshot.error!),
+                  onRetry: _refresh,
                 );
               }
 
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
               final search = _searchController.text.trim().toLowerCase();
-              final documents = snapshot.data!.docs.where((document) {
-                final data = document.data();
-                final role = stringFromFirestore(data['role']).toLowerCase();
-                if (_roleFilter != 'all' && role != _roleFilter) return false;
-
+              final users = (snapshot.data ?? const <AppUser>[]).where((user) {
+                if (_roleFilter != 'all' && user.role != _roleFilter) return false;
                 if (search.isEmpty) return true;
-                final searchableText = [
-                  data['displayName'],
-                  data['email'],
-                  data['studentId'],
-                  role,
-                ].map((value) => value?.toString() ?? '').join(' ').toLowerCase();
-                return searchableText.contains(search);
+                return [
+                  user.displayName,
+                  user.email,
+                  user.studentId ?? '',
+                  user.role,
+                ].join(' ').toLowerCase().contains(search);
               }).toList()
                 ..sort((a, b) {
-                  final aData = a.data();
-                  final bData = b.data();
-                  final roleComparison =
-                      stringFromFirestore(aData['role']).compareTo(
-                    stringFromFirestore(bData['role']),
-                  );
-                  if (roleComparison != 0) return roleComparison;
-
-                  final aName = stringFromFirestore(
-                    aData['displayName'],
-                    fallback: stringFromFirestore(aData['email'], fallback: a.id),
-                  ).toLowerCase();
-                  final bName = stringFromFirestore(
-                    bData['displayName'],
-                    fallback: stringFromFirestore(bData['email'], fallback: b.id),
-                  ).toLowerCase();
-                  return aName.compareTo(bName);
+                  final role = a.role.compareTo(b.role);
+                  if (role != 0) return role;
+                  return a.displayName.toLowerCase().compareTo(
+                        b.displayName.toLowerCase(),
+                      );
                 });
 
-              if (documents.isEmpty) {
-                return const _MessageState(
+              if (users.isEmpty) {
+                return const MessageState(
                   icon: Icons.manage_accounts_outlined,
                   title: 'No matching accounts',
                   message: 'Try another search or role filter.',
                 );
               }
 
-              return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                itemCount: documents.length,
-                itemBuilder: (context, index) {
-                  final document = documents[index];
-                  final data = document.data();
-                  final active = boolFromFirestore(
-                    data['active'],
-                    fallback: true,
-                  );
-                  final role =
-                      stringFromFirestore(data['role']).toLowerCase();
-                  final studentId = stringFromFirestore(data['studentId']);
-                  final isCurrentUser = document.id == widget.currentUserId;
-                  final busy = _busyUserIds.contains(document.id);
-                  final displayName = stringFromFirestore(
-                    data['displayName'],
-                    fallback: stringFromFirestore(
-                      data['email'],
-                      fallback: document.id,
-                    ),
-                  );
-
-                  return Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        child: Icon(
-                          active ? Icons.person : Icons.person_off,
+              return RefreshIndicator(
+                onRefresh: () async => _refresh(),
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  itemCount: users.length,
+                  itemBuilder: (context, index) {
+                    final user = users[index];
+                    final isCurrent = user.uid == widget.currentUserId;
+                    final busy = _busyUserIds.contains(user.uid);
+                    return Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Icon(user.active ? Icons.person : Icons.person_off),
                         ),
-                      ),
-                      title: Row(
-                        children: [
-                          Flexible(child: Text(displayName)),
-                          if (isCurrentUser) ...[
-                            const SizedBox(width: 8),
-                            const Chip(label: Text('You')),
+                        title: Row(
+                          children: [
+                            Flexible(child: Text(user.displayName)),
+                            if (isCurrent) ...[
+                              const SizedBox(width: 8),
+                              const Chip(label: Text('You')),
+                            ],
                           ],
-                        ],
-                      ),
-                      subtitle: Text(
-                        [
-                          stringFromFirestore(data['email']),
-                          'Role: ${role.toUpperCase()}',
-                          if (role == 'student' && studentId.isNotEmpty)
-                            'Student ID: $studentId',
-                        ].where((line) => line.isNotEmpty).join('\n'),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(active ? 'Active' : 'Disabled'),
-                          const SizedBox(width: 8),
-                          if (busy)
-                            const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          else
-                            Switch(
-                              value: active,
-                              onChanged: isCurrentUser
-                                  ? null
-                                  : (_) => _toggleActive(
-                                        uid: document.id,
-                                        currentlyActive: active,
-                                      ),
+                        ),
+                        subtitle: Text(
+                          [
+                            user.email,
+                            'Role: ${user.role.toUpperCase()}',
+                            if (user.role == 'student' &&
+                                (user.studentId ?? '').isNotEmpty)
+                              'Student ID: ${user.studentId}',
+                            'Created: ${formatDateTime(user.createdAt)}',
+                          ].join('\n'),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Reset password',
+                              onPressed: () => _showResetPasswordDialog(user),
+                              icon: const Icon(Icons.lock_reset),
                             ),
-                        ],
+                            if (busy)
+                              const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            else
+                              Switch(
+                                value: user.active,
+                                onChanged: isCurrent ? null : (_) => _toggleActive(user),
+                              ),
+                          ],
+                        ),
+                        isThreeLine: true,
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -520,39 +543,4 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       ],
     );
   }
-}
-
-class _MessageState extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-
-  const _MessageState({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 52, color: Theme.of(context).colorScheme.outline),
-            const SizedBox(height: 12),
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 6),
-            Text(message, textAlign: TextAlign.center),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-String _cleanError(Object error) {
-  return error.toString().replaceFirst('Exception:', '').trim();
 }

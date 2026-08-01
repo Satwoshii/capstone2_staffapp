@@ -1,8 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../utils/firestore_helpers.dart';
+import '../models/room_record.dart';
+import '../services/staff_service.dart';
+import '../utils/value_helpers.dart';
+import '../widgets/message_state.dart';
 
 class RoomManagementScreen extends StatefulWidget {
   const RoomManagementScreen({super.key});
@@ -15,112 +19,73 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
   final _formKey = GlobalKey<FormState>();
   final _roomController = TextEditingController();
   final _pcCountController = TextEditingController(text: '40');
-  final _busyRoomIds = <String>{};
-
+  final _busyRooms = <String>{};
+  Future<List<RoomRecord>>? _future;
+  Timer? _timer;
   bool _saving = false;
 
   @override
+  void initState() {
+    super.initState();
+    _refresh();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+  }
+
+  @override
   void dispose() {
+    _timer?.cancel();
     _roomController.dispose();
     _pcCountController.dispose();
     super.dispose();
   }
 
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {
+      _future = StaffService.instance.listRooms();
+    });
+  }
+
   Future<void> _addRoom() async {
     if (_saving || !(_formKey.currentState?.validate() ?? false)) return;
-
-    final roomName = _roomController.text.trim();
-    final count = int.parse(_pcCountController.text.trim());
-
     setState(() => _saving = true);
-
     try {
-      final firestore = FirebaseFirestore.instance;
-      final roomReference = firestore.collection('rooms').doc(roomName);
-      final existingRoom = await roomReference.get();
-      if (existingRoom.exists) {
-        throw Exception('Room "$roomName" already exists.');
-      }
-
-      final existingPcs = await firestore
-          .collection('pcs')
-          .where('roomName', isEqualTo: roomName)
-          .limit(1)
-          .get();
-      if (existingPcs.docs.isNotEmpty) {
-        throw Exception(
-          'PC records already use room "$roomName". '
-          'Choose another room name.',
-        );
-      }
-
-      final batch = firestore.batch();
-      batch.set(roomReference, {
-        'roomName': roomName,
-        'pcCount': count,
-        'active': true,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      for (var number = 1; number <= count; number++) {
-        final pcId = 'PC-${number.toString().padLeft(2, '0')}';
-        final pcReference =
-            firestore.collection('pcs').doc('${roomName}_$pcId');
-        batch.set(pcReference, {
-          'roomName': roomName,
-          'pcId': pcId,
-          'status': 'unknown',
-          'active': true,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      await batch.commit();
-
+      await StaffService.instance.createRoom(
+        roomName: _roomController.text,
+        pcCount: int.parse(_pcCountController.text.trim()),
+      );
       if (!mounted) return;
       _roomController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Room $roomName and $count PC records were created.',
-          ),
-        ),
+        const SnackBar(content: Text('Room created successfully.')),
       );
+      _refresh();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_cleanError(error))),
+        SnackBar(content: Text(cleanError(error))),
       );
     } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
+      if (mounted) setState(() => _saving = false);
     }
   }
 
-  Future<void> _toggleRoom({
-    required String roomId,
-    required bool currentlyActive,
-  }) async {
-    if (_busyRoomIds.contains(roomId)) return;
-    setState(() => _busyRoomIds.add(roomId));
-
+  Future<void> _toggleRoom(RoomRecord room) async {
+    if (_busyRooms.contains(room.roomName)) return;
+    setState(() => _busyRooms.add(room.roomName));
     try {
-      await FirebaseFirestore.instance.collection('rooms').doc(roomId).update({
-        'active': !currentlyActive,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await StaffService.instance.setRoomActive(
+        roomName: room.roomName,
+        active: !room.active,
+      );
+      _refresh();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_cleanError(error))),
+        SnackBar(content: Text(cleanError(error))),
       );
     } finally {
-      if (mounted) {
-        setState(() => _busyRoomIds.remove(roomId));
-      }
+      if (mounted) setState(() => _busyRooms.remove(room.roomName));
     }
   }
 
@@ -137,58 +102,38 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                 key: _formKey,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final fields = [
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: _roomController,
-                          enabled: !_saving,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Room/Lab Name',
-                            prefixIcon: Icon(Icons.meeting_room_outlined),
-                          ),
-                          validator: (value) {
-                            final room = (value ?? '').trim();
-                            if (room.isEmpty) {
-                              return 'Room name is required.';
-                            }
-                            if (room.contains('/')) {
-                              return 'Room name cannot contain "/".';
-                            }
-                            return null;
-                          },
-                        ),
+                    final roomField = TextFormField(
+                      controller: _roomController,
+                      enabled: !_saving,
+                      decoration: const InputDecoration(
+                        labelText: 'Room/Lab Name',
+                        prefixIcon: Icon(Icons.meeting_room_outlined),
                       ),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _pcCountController,
-                          enabled: !_saving,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.done,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          decoration: const InputDecoration(
-                            labelText: 'PC Count',
-                            prefixIcon: Icon(Icons.computer),
-                          ),
-                          validator: (value) {
-                            final count = int.tryParse((value ?? '').trim());
-                            if (count == null) {
-                              return 'Enter a number.';
-                            }
-                            if (count < 1 || count > 200) {
-                              return 'Use 1 to 200.';
-                            }
-                            return null;
-                          },
-                          onFieldSubmitted: (_) => _addRoom(),
-                        ),
+                      validator: (value) {
+                        final room = (value ?? '').trim();
+                        if (room.isEmpty) return 'Room name is required.';
+                        if (room.contains('/')) return 'Room cannot contain "/".';
+                        return null;
+                      },
+                    );
+                    final countField = TextFormField(
+                      controller: _pcCountController,
+                      enabled: !_saving,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        labelText: 'Planned PC Count',
+                        prefixIcon: Icon(Icons.computer),
                       ),
-                    ];
-
-                    final addButton = FilledButton.icon(
+                      validator: (value) {
+                        final count = int.tryParse((value ?? '').trim());
+                        if (count == null) return 'Enter a number.';
+                        if (count < 1 || count > 200) return 'Use 1 to 200.';
+                        return null;
+                      },
+                      onFieldSubmitted: (_) => _addRoom(),
+                    );
+                    final button = FilledButton.icon(
                       onPressed: _saving ? null : _addRoom,
                       icon: _saving
                           ? const SizedBox(
@@ -204,24 +149,26 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          for (var index = 0; index < fields.length; index++) ...[
-                            Row(children: [fields[index]]),
-                            if (index != fields.length - 1)
-                              const SizedBox(height: 12),
-                          ],
+                          roomField,
                           const SizedBox(height: 12),
-                          addButton,
+                          countField,
+                          const SizedBox(height: 12),
+                          button,
                         ],
                       );
                     }
-
                     return Row(
                       children: [
-                        fields[0],
+                        Expanded(flex: 2, child: roomField),
                         const SizedBox(width: 12),
-                        fields[1],
+                        Expanded(child: countField),
                         const SizedBox(width: 12),
-                        addButton,
+                        button,
+                        IconButton(
+                          tooltip: 'Refresh',
+                          onPressed: _refresh,
+                          icon: const Icon(Icons.refresh),
+                        ),
                       ],
                     );
                   },
@@ -231,89 +178,69 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
           ),
         ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream:
-                FirebaseFirestore.instance.collection('rooms').snapshots(),
+          child: FutureBuilder<List<RoomRecord>>(
+            future: _future,
             builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(
-                  child: Text(
-                    'Could not load rooms: ${_cleanError(snapshot.error!)}',
-                  ),
-                );
-              }
-              if (!snapshot.hasData) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-
-              final documents = snapshot.data!.docs.toList()
-                ..sort((a, b) {
-                  final aName = stringFromFirestore(
-                    a.data()['roomName'],
-                    fallback: a.id,
-                  );
-                  final bName = stringFromFirestore(
-                    b.data()['roomName'],
-                    fallback: b.id,
-                  );
-                  return aName.compareTo(bName);
-                });
-
-              if (documents.isEmpty) {
-                return const Center(child: Text('No rooms have been added.'));
+              if (snapshot.hasError) {
+                return MessageState(
+                  icon: Icons.wifi_off,
+                  title: 'Could not load rooms',
+                  message: cleanError(snapshot.error!),
+                  onRetry: _refresh,
+                );
               }
-
-              return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                itemCount: documents.length,
-                itemBuilder: (context, index) {
-                  final document = documents[index];
-                  final data = document.data();
-                  final active = boolFromFirestore(
-                    data['active'],
-                    fallback: true,
-                  );
-                  final busy = _busyRoomIds.contains(document.id);
-
-                  return Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        child: Icon(
-                          active ? Icons.meeting_room : Icons.block,
+              final rooms = snapshot.data ?? const <RoomRecord>[];
+              if (rooms.isEmpty) {
+                return const MessageState(
+                  icon: Icons.meeting_room_outlined,
+                  title: 'No rooms yet',
+                  message: 'Add the first laboratory room above.',
+                );
+              }
+              return RefreshIndicator(
+                onRefresh: () async => _refresh(),
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  itemCount: rooms.length,
+                  itemBuilder: (context, index) {
+                    final room = rooms[index];
+                    final busy = _busyRooms.contains(room.roomName);
+                    return Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Icon(
+                            room.active ? Icons.meeting_room : Icons.block,
+                          ),
                         ),
-                      ),
-                      title: Text(
-                        stringFromFirestore(
-                          data['roomName'],
-                          fallback: document.id,
+                        title: Text(room.roomName),
+                        subtitle: Text(
+                          'Planned PCs: ${room.pcCount}\n'
+                          'Registered workstations: ${room.registeredPcCount}',
                         ),
-                      ),
-                      subtitle: Text(
-                        'PC Count: ${data['pcCount'] ?? 'Not set'}',
-                      ),
-                      trailing: busy
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(active ? 'Active' : 'Inactive'),
-                                const SizedBox(width: 8),
-                                Switch(
-                                  value: active,
-                                  onChanged: (_) => _toggleRoom(
-                                    roomId: document.id,
-                                    currentlyActive: active,
+                        trailing: busy
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(room.active ? 'Active' : 'Inactive'),
+                                  const SizedBox(width: 8),
+                                  Switch(
+                                    value: room.active,
+                                    onChanged: (_) => _toggleRoom(room),
                                   ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  );
-                },
+                                ],
+                              ),
+                      ),
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -321,8 +248,4 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
       ],
     );
   }
-}
-
-String _cleanError(Object error) {
-  return error.toString().replaceFirst('Exception:', '').trim();
 }

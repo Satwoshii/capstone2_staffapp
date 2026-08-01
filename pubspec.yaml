@@ -1,7 +1,7 @@
-name: staff_admin_app
-description: Normal ITSO/Admin management app for the Hybrid PC Monitoring System.
+name: syswatch_admin
+description: Syswatch Admin intranet management application.
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.3.2+5
 
 environment:
   sdk: ^3.5.0
@@ -9,11 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  firebase_core: ^4.0.0
-  firebase_auth: ^6.0.0
-  cloud_firestore: ^6.0.0
-  crypto: ^3.0.6
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

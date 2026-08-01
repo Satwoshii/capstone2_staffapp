@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
-import '../services/firebase_user_service.dart';
+import '../services/app_config_service.dart';
+import '../services/staff_service.dart';
 import 'account_management_screen.dart';
 import 'last_known_user_screen.dart';
 import 'pc_health_reports_screen.dart';
@@ -24,17 +25,11 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
   int _selectedIndex = 0;
   bool _loggingOut = false;
 
-  bool get _isAdmin => widget.user.role == 'admin';
-
   @override
   void initState() {
     super.initState();
     _menuItems = [
-      const _MenuItem(
-        'PC Health',
-        Icons.monitor_heart,
-        PcHealthReportsScreen(),
-      ),
+      const _MenuItem('PC Health', Icons.monitor_heart, PcHealthReportsScreen()),
       _MenuItem(
         'Repairs',
         Icons.build,
@@ -45,55 +40,43 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         Icons.person_pin_circle,
         LastKnownUserScreen(),
       ),
-      const _MenuItem(
-        'Reports',
-        Icons.analytics,
-        ReportsScreen(),
+      const _MenuItem('Reports', Icons.analytics, ReportsScreen()),
+      const _MenuItem('Rooms', Icons.meeting_room, RoomManagementScreen()),
+      _MenuItem(
+        'Accounts',
+        Icons.manage_accounts,
+        AccountManagementScreen(currentUserId: widget.user.uid),
       ),
-      if (_isAdmin) ...[
-        const _MenuItem(
-          'Rooms',
-          Icons.meeting_room,
-          RoomManagementScreen(),
-        ),
-        _MenuItem(
-          'Accounts',
-          Icons.manage_accounts,
-          AccountManagementScreen(currentUserId: widget.user.uid),
-        ),
-      ],
     ];
   }
 
   Future<void> _logout() async {
     if (_loggingOut) return;
     setState(() => _loggingOut = true);
-
-    try {
-      await FirebaseUserService.signOut();
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
-        (_) => false,
-      );
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _loggingOut = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not sign out: $error')),
-      );
-    }
+    await StaffService.instance.logout();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
+      (_) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final selected = _menuItems[_selectedIndex];
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Syswatch Staff'),
+        title: const Text('Syswatch Admin'),
         actions: [
+          Tooltip(
+            message: AppConfigService.instance.serverUrl,
+            child: const Chip(
+              avatar: Icon(Icons.lan, size: 18),
+              label: Text('Intranet'),
+            ),
+          ),
+          const SizedBox(width: 8),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Chip(
@@ -130,12 +113,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
             labelType: NavigationRailLabelType.all,
             leading: Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Tooltip(
-                message: _isAdmin ? 'Admin access' : 'ITSO access',
-                child: CircleAvatar(
-                  child: Text(_isAdmin ? 'A' : 'I'),
-                ),
-              ),
+              child: const CircleAvatar(child: Text('A')),
             ),
             destinations: [
               for (final item in _menuItems)
@@ -173,9 +151,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                 Expanded(
                   child: IndexedStack(
                     index: _selectedIndex,
-                    children: [
-                      for (final item in _menuItems) item.screen,
-                    ],
+                    children: [for (final item in _menuItems) item.screen],
                   ),
                 ),
               ],

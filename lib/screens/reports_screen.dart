@@ -1,218 +1,200 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../utils/firestore_helpers.dart';
+import '../models/dashboard_summary.dart';
+import '../models/fault_report.dart';
+import '../services/staff_service.dart';
+import '../utils/value_helpers.dart';
 import '../widgets/dashboard_card.dart';
+import '../widgets/message_state.dart';
 
-class ReportsScreen extends StatelessWidget {
+class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
   @override
+  State<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends State<ReportsScreen> {
+  Future<_ReportData>? _future;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {
+      _future = Future.wait<dynamic>([
+        StaffService.instance.dashboard(),
+        StaffService.instance.listFaultReports(),
+      ]).then(
+        (values) => _ReportData(
+          summary: values[0] as DashboardSummary,
+          faults: values[1] as List<FaultReport>,
+        ),
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream:
-          FirebaseFirestore.instance.collection('fault_reports').snapshots(),
-      builder: (context, faultSnapshot) {
-        if (faultSnapshot.hasError) {
-          return _ReportError(error: faultSnapshot.error!);
+    return FutureBuilder<_ReportData>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return MessageState(
+            icon: Icons.wifi_off,
+            title: 'Could not load reports',
+            message: cleanError(snapshot.error!),
+            onRetry: _refresh,
+          );
+        }
+        final data = snapshot.data;
+        if (data == null) {
+          return const MessageState(
+            icon: Icons.analytics_outlined,
+            title: 'No report data',
+            message: 'The server did not return report information.',
+          );
         }
 
-        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream:
-              FirebaseFirestore.instance.collection('login_logs').snapshots(),
-          builder: (context, loginSnapshot) {
-            if (loginSnapshot.hasError) {
-              return _ReportError(error: loginSnapshot.error!);
-            }
+        final recentFaults = data.faults.toList()
+          ..sort((a, b) {
+            final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime);
+          });
 
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream:
-                  FirebaseFirestore.instance.collection('pc_status').snapshots(),
-              builder: (context, pcSnapshot) {
-                if (pcSnapshot.hasError) {
-                  return _ReportError(error: pcSnapshot.error!);
-                }
-
-                if (!faultSnapshot.hasData ||
-                    !loginSnapshot.hasData ||
-                    !pcSnapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final faults = faultSnapshot.data!.docs;
-                final logins = loginSnapshot.data!.docs;
-                final pcs = pcSnapshot.data!.docs;
-
-                final pending = faults.where((document) {
-                  return !boolFromFirestore(document.data()['repaired']);
-                }).length;
-                final repaired = faults.length - pending;
-                final pcIssues = pcs.where((document) {
-                  final status = stringFromFirestore(
-                    document.data()['status'],
-                  ).toLowerCase();
-                  if (status.isEmpty ||
-                      status == 'unknown' ||
-                      status == 'not checked') {
-                    return false;
-                  }
-                  return status != 'healthy' &&
-                      status != 'ok' &&
-                      status != 'normal' &&
-                      status != 'online' &&
-                      status != 'working';
-                }).length;
-
-                final recentFaults = faults.toList()
-                  ..sort(
-                    (a, b) => compareFirestoreTimestamps(
-                      b.data()['createdAt'],
-                      a.data()['createdAt'],
+        return RefreshIndicator(
+          onRefresh: () async => _refresh(),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Live totals from the central MariaDB database.',
                     ),
-                  );
-
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  children: [
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 16,
-                      children: [
-                        DashboardCard(
-                          title: 'Fault Reports',
-                          value: faults.length.toString(),
-                          icon: Icons.report,
-                          color: Colors.red,
+                  ),
+                  IconButton(
+                    tooltip: 'Refresh',
+                    onPressed: _refresh,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: [
+                  DashboardCard(
+                    title: 'Workstations',
+                    value: data.summary.workstations.toString(),
+                    icon: Icons.computer,
+                    color: Colors.blue,
+                  ),
+                  DashboardCard(
+                    title: 'Online',
+                    value: data.summary.onlineWorkstations.toString(),
+                    icon: Icons.lan,
+                    color: Colors.green,
+                  ),
+                  DashboardCard(
+                    title: 'Open Faults',
+                    value: data.summary.openFaults.toString(),
+                    icon: Icons.warning_amber,
+                    color: Colors.orange,
+                  ),
+                  DashboardCard(
+                    title: 'Repaired',
+                    value: data.summary.repairedFaults.toString(),
+                    icon: Icons.build_circle,
+                    color: Colors.teal,
+                  ),
+                  DashboardCard(
+                    title: 'Students',
+                    value: data.summary.students.toString(),
+                    icon: Icons.school,
+                    color: Colors.indigo,
+                  ),
+                  DashboardCard(
+                    title: 'Login Logs',
+                    value: data.summary.loginLogs.toString(),
+                    icon: Icons.login,
+                    color: Colors.purple,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Recent Fault Reports',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              if (recentFaults.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('No fault reports have been received.'),
+                  ),
+                )
+              else
+                for (final report in recentFaults.take(10))
+                  Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: report.repaired
+                            ? Colors.green.withOpacity(0.14)
+                            : Colors.orange.withOpacity(0.14),
+                        child: Icon(
+                          report.repaired ? Icons.check : Icons.warning_amber,
+                          color: report.repaired ? Colors.green : Colors.orange,
                         ),
-                        DashboardCard(
-                          title: 'Pending Repairs',
-                          value: pending.toString(),
-                          icon: Icons.build,
-                          color: Colors.orange,
-                        ),
-                        DashboardCard(
-                          title: 'Completed Repairs',
-                          value: repaired.toString(),
-                          icon: Icons.check_circle,
-                          color: Colors.green,
-                        ),
-                        DashboardCard(
-                          title: 'PCs With Issues',
-                          value: pcIssues.toString(),
-                          icon: Icons.warning,
-                          color: Colors.red,
-                        ),
-                        DashboardCard(
-                          title: 'Login Records',
-                          value: logins.length.toString(),
-                          icon: Icons.history,
-                          color: Colors.blue,
-                        ),
-                      ],
+                      ),
+                      title: Text('${report.roomName} - ${report.pcId}'),
+                      subtitle: Text(
+                        [
+                          report.issue,
+                          if (report.details.isNotEmpty) report.details,
+                          formatDateTime(report.createdAt),
+                        ].join('\n'),
+                      ),
+                      trailing: Chip(
+                        label: Text(report.repaired ? 'REPAIRED' : 'OPEN'),
+                      ),
                     ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Recent Fault Reports',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 10),
-                    if (recentFaults.isEmpty)
-                      const Card(
-                        child: ListTile(
-                          leading: Icon(Icons.inbox_outlined),
-                          title: Text('No synchronized fault reports yet.'),
-                        ),
-                      )
-                    else
-                      for (final document in recentFaults.take(5))
-                        _RecentFaultTile(document: document),
-                  ],
-                );
-              },
-            );
-          },
+                  ),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-class _RecentFaultTile extends StatelessWidget {
-  final QueryDocumentSnapshot<Map<String, dynamic>> document;
+class _ReportData {
+  final DashboardSummary summary;
+  final List<FaultReport> faults;
 
-  const _RecentFaultTile({required this.document});
-
-  @override
-  Widget build(BuildContext context) {
-    final data = document.data();
-    final repaired = boolFromFirestore(data['repaired']);
-    final room = stringFromFirestore(
-      data['roomName'],
-      fallback: 'Unknown room',
-    );
-    final pc = stringFromFirestore(
-      data['pcId'],
-      fallback: 'Unknown PC',
-    );
-    final issue = readableFirestoreValue(
-      data['issue'] ??
-          data['issues'] ??
-          data['detectedIssues'] ??
-          data['faultType'],
-    );
-
-    return Card(
-      child: ListTile(
-        leading: Icon(
-          repaired ? Icons.check_circle : Icons.warning_amber,
-          color: repaired ? Colors.green : Colors.orange,
-        ),
-        title: Text('$room - $pc'),
-        subtitle: Text(
-          [
-            if (issue.isNotEmpty) issue,
-            formatFirestoreTimestamp(data['createdAt']),
-          ].join('\n'),
-        ),
-        trailing: Chip(
-          label: Text(repaired ? 'REPAIRED' : 'PENDING'),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReportError extends StatelessWidget {
-  final Object error;
-
-  const _ReportError({required this.error});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.cloud_off,
-              size: 52,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 12),
-            const Text('Could not load the report summary.'),
-            const SizedBox(height: 6),
-            Text(
-              error.toString(),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  const _ReportData({required this.summary, required this.faults});
 }

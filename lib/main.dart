@@ -1,17 +1,14 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-import 'firebase_options.dart';
 import 'screens/staff_login_screen.dart';
+import 'services/app_config_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   Object? startupError;
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await AppConfigService.instance.init();
   } catch (error) {
     startupError = error;
   }
@@ -27,7 +24,7 @@ class StaffAdminApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Syswatch Staff',
+      title: 'Syswatch Admin',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -69,19 +66,19 @@ class _StartupErrorScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.cloud_off,
+                    Icons.storage_outlined,
                     size: 64,
                     color: Theme.of(context).colorScheme.error,
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Firebase could not start',
+                    'Syswatch Admin could not start',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Check the Firebase Windows configuration and internet '
-                    'connection, then restart the Staff App.',
+                    'The local application configuration could not be opened. '
+                    'Check folder permissions, then restart the Admin App.',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
