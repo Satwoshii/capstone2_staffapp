@@ -4,6 +4,8 @@ import '../models/fault_report.dart';
 import '../models/last_known_user_record.dart';
 import '../models/pc_health_record.dart';
 import '../models/room_record.dart';
+import '../models/support_chat_message.dart';
+import '../models/support_conversation.dart';
 import 'api_client.dart';
 import 'api_endpoints.dart';
 import 'app_config_service.dart';
@@ -181,6 +183,71 @@ class StaffService {
       ApiEndpoints.lastKnownUsers,
     );
     return _mapList(response['records'], LastKnownUserRecord.fromJson);
+  }
+
+
+
+  Future<List<SupportConversation>> listSupportConversations({
+    String status = 'all',
+  }) async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.supportConversations,
+      query: status == 'all' ? null : {'status': status},
+    );
+    return _mapList(
+      response['conversations'],
+      SupportConversation.fromJson,
+    );
+  }
+
+  Future<List<SupportChatMessage>> listSupportMessages(
+    int conversationId,
+  ) async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.supportMessages,
+      query: {'conversation_id': conversationId.toString()},
+    );
+    return _mapList(response['messages'], SupportChatMessage.fromJson);
+  }
+
+  Future<SupportChatMessage> sendSupportMessage({
+    required int conversationId,
+    required String message,
+  }) async {
+    final response = await ApiClient.instance.postJson(
+      ApiEndpoints.supportSend,
+      body: {
+        'conversation_id': conversationId,
+        'message': message.trim(),
+      },
+    );
+    final raw = response['message'];
+    if (raw is! Map) {
+      throw Exception('The server did not return the sent message.');
+    }
+    return SupportChatMessage.fromJson(
+      raw.map((key, value) => MapEntry(key.toString(), value)),
+    );
+  }
+
+  Future<void> updateSupportStatus({
+    required int conversationId,
+    required String status,
+  }) async {
+    await ApiClient.instance.postJson(
+      ApiEndpoints.supportUpdateStatus,
+      body: {
+        'conversation_id': conversationId,
+        'status': status,
+      },
+    );
+  }
+
+  Future<void> markSupportRead(int conversationId) async {
+    await ApiClient.instance.postJson(
+      ApiEndpoints.supportMarkRead,
+      body: {'conversation_id': conversationId},
+    );
   }
 
   List<T> _mapList<T>(

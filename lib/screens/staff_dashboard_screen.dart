@@ -10,6 +10,7 @@ import 'repair_management_screen.dart';
 import 'reports_screen.dart';
 import 'room_management_screen.dart';
 import 'staff_login_screen.dart';
+import 'support_chat_screen.dart';
 
 class StaffDashboardScreen extends StatefulWidget {
   final AppUser user;
@@ -41,6 +42,11 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         LastKnownUserScreen(),
       ),
       const _MenuItem('Reports', Icons.analytics, ReportsScreen()),
+      const _MenuItem(
+        'ITSO Support',
+        Icons.support_agent,
+        SupportChatScreen(),
+      ),
       const _MenuItem('Rooms', Icons.meeting_room, RoomManagementScreen()),
       _MenuItem(
         'Accounts',
