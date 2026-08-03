@@ -1,6 +1,6 @@
 class SupportConversation {
   final int id;
-  final String faultReportId;
+  final String? faultReportId;
   final String workstationId;
   final String roomName;
   final String pcId;
@@ -8,10 +8,13 @@ class SupportConversation {
   final String studentName;
   final String studentId;
   final String studentEmail;
+  final String category;
+  final String subject;
   final String issue;
   final String details;
   final String severity;
   final String status;
+  final bool linkedFault;
   final bool repaired;
   final int unreadCount;
   final String? lastMessage;
@@ -29,10 +32,13 @@ class SupportConversation {
     required this.studentName,
     required this.studentId,
     required this.studentEmail,
+    required this.category,
+    required this.subject,
     required this.issue,
     required this.details,
     required this.severity,
     required this.status,
+    required this.linkedFault,
     required this.repaired,
     required this.unreadCount,
     this.lastMessage,
@@ -42,11 +48,15 @@ class SupportConversation {
   });
 
   bool get canReply => !repaired && status != 'resolved' && status != 'closed';
+  bool get hasLinkedFault => linkedFault && faultReportId != null;
 
   factory SupportConversation.fromJson(Map<String, dynamic> json) {
+    final faultId = _nullable(json['fault_report_id']);
+    final subject = (json['subject'] ?? json['issue'] ?? 'Support Request')
+        .toString();
     return SupportConversation(
       id: _toInt(json['id'] ?? json['conversation_id']),
-      faultReportId: (json['fault_report_id'] ?? '').toString(),
+      faultReportId: faultId,
       workstationId: (json['workstation_id'] ?? '').toString(),
       roomName: (json['room_name'] ?? '').toString(),
       pcId: (json['pc_id'] ?? '').toString(),
@@ -54,10 +64,13 @@ class SupportConversation {
       studentName: (json['student_name'] ?? '').toString(),
       studentId: (json['student_id'] ?? '').toString(),
       studentEmail: (json['student_email'] ?? '').toString(),
-      issue: (json['issue'] ?? 'Unknown issue').toString(),
+      category: (json['category'] ?? 'general').toString(),
+      subject: subject,
+      issue: (json['issue'] ?? subject).toString(),
       details: (json['details'] ?? '').toString(),
-      severity: (json['severity'] ?? 'medium').toString(),
+      severity: (json['severity'] ?? 'normal').toString(),
       status: (json['status'] ?? 'open').toString().trim().toLowerCase(),
+      linkedFault: _toBool(json['linked_fault']) || faultId != null,
       repaired: _toBool(json['repaired']),
       unreadCount: _toInt(json['unread_count']),
       lastMessage: _nullable(json['last_message']),

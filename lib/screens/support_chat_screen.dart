@@ -152,20 +152,19 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   Future<void> _sendMessage() async {
     final conversation = _selected;
     final text = _messageController.text.trim();
-    if (conversation == null || _sending || text.isEmpty) return;
-    if (!conversation.canReply) {
-      _showMessage('This issue is resolved. The conversation is read-only.');
-      return;
-    }
+    if (conversation == null || _sending || !conversation.canReply) return;
+    if (text.isEmpty) return;
 
     setState(() => _sending = true);
     try {
-      await StaffService.instance.sendSupportMessage(
+      final sent = await StaffService.instance.sendSupportMessage(
         conversationId: conversation.id,
         message: text,
       );
       _messageController.clear();
-      await _loadMessages(conversation, silent: true);
+      if (!mounted) return;
+      setState(() => _messages = [..._messages, sent]);
+      _scrollAfterBuild();
       await _refreshConversations(silent: true);
     } catch (error) {
       _showMessage(cleanError(error));
@@ -174,15 +173,14 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     }
   }
 
-  Future<void> _updateStatus(String value) async {
+  Future<void> _updateStatus(String status) async {
     final conversation = _selected;
     if (conversation == null || _updatingStatus) return;
-
     setState(() => _updatingStatus = true);
     try {
       await StaffService.instance.updateSupportStatus(
         conversationId: conversation.id,
-        status: value,
+        status: status,
       );
       await _refreshConversations(silent: true);
       _showMessage('Support status updated.');
@@ -195,7 +193,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
   Future<void> _markRepaired() async {
     final conversation = _selected;
-    if (conversation == null || conversation.repaired) return;
+    if (conversation == null || !conversation.hasLinkedFault) return;
 
     final controller = TextEditingController();
     final key = GlobalKey<FormState>();
@@ -203,24 +201,20 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Mark Issue Repaired'),
+          title: const Text('Mark Linked PC Issue as Repaired'),
           content: Form(
             key: key,
-            child: SizedBox(
-              width: 480,
-              child: TextFormField(
-                controller: controller,
-                minLines: 3,
-                maxLines: 6,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Repair action / technician notes',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) => (value ?? '').trim().isEmpty
-                    ? 'Enter the repair action or notes.'
-                    : null,
+            child: TextFormField(
+              controller: controller,
+              minLines: 3,
+              maxLines: 6,
+              decoration: const InputDecoration(
+                labelText: 'Repair action / technician notes',
+                border: OutlineInputBorder(),
               ),
+              validator: (value) => (value ?? '').trim().isEmpty
+                  ? 'Enter the repair action or notes.'
+                  : null,
             ),
           ),
           actions: [
@@ -241,15 +235,17 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       },
     );
     controller.dispose();
-    if (notes == null || notes.isEmpty) return;
+    if (notes == null || notes.isEmpty || conversation.faultReportId == null) {
+      return;
+    }
 
     try {
       await StaffService.instance.markRepaired(
-        reportId: conversation.faultReportId,
+        reportId: conversation.faultReportId!,
         notes: notes,
       );
       await _refreshConversations(silent: true);
-      _showMessage('Issue marked as repaired. The chat is now read-only.');
+      _showMessage('PC issue repaired. The linked request is resolved.');
     } catch (error) {
       _showMessage(cleanError(error));
     }
@@ -273,6 +269,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         item.studentName,
         item.studentId,
         item.studentEmail,
+        item.category,
+        item.subject,
         item.issue,
         item.details,
         item.lastMessage ?? '',
@@ -295,7 +293,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     return Row(
       children: [
         SizedBox(
-          width: 390,
+          width: 410,
           child: Column(
             children: [
               Padding(
@@ -305,7 +303,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                     TextField(
                       controller: _searchController,
                       decoration: const InputDecoration(
-                        labelText: 'Search support requests',
+                        labelText: 'Search customer support requests',
                         prefixIcon: Icon(Icons.search),
                       ),
                       onChanged: (_) => setState(() {}),
@@ -336,9 +334,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   }
 
   Widget _buildConversationList() {
-    if (_loadingList) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_loadingList) return const Center(child: CircularProgressIndicator());
     if (_listError != null) {
       return MessageState(
         icon: Icons.wifi_off,
@@ -353,7 +349,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       return const MessageState(
         icon: Icons.support_agent,
         title: 'No support conversations',
-        message: 'Chats appear only after a Student PC reports an issue.',
+        message: 'Students can create a support request after logging in.',
       );
     }
 
@@ -373,15 +369,11 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               selected: selected,
               onTap: () => _selectConversation(item),
               leading: CircleAvatar(
-                backgroundColor: _severityColor(item.severity).withOpacity(.14),
-                child: Icon(
-                  Icons.report_problem,
-                  color: _severityColor(item.severity),
-                ),
+                child: Icon(_categoryIcon(item.category)),
               ),
-              title: Text('${item.roomName} - ${item.pcId}'),
+              title: Text(item.subject),
               subtitle: Text(
-                '${item.issue}\n'
+                '${item.roomName} - ${item.pcId}\n'
                 '${item.studentName.isEmpty ? item.studentEmail : item.studentName}',
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
@@ -403,13 +395,13 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       return const MessageState(
         icon: Icons.forum_outlined,
         title: 'Select a support request',
-        message: 'Open a conversation to reply and manage its issue.',
+        message: 'Open a conversation to reply and update its status.',
       );
     }
 
     return Column(
       children: [
-        _buildIssueHeader(conversation),
+        _buildRequestHeader(conversation),
         if (_messageError != null)
           MaterialBanner(
             content: Text(_messageError!),
@@ -439,7 +431,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     );
   }
 
-  Widget _buildIssueHeader(SupportConversation conversation) {
+  Widget _buildRequestHeader(SupportConversation conversation) {
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Padding(
@@ -449,69 +441,66 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.report_problem,
-                  color: _severityColor(conversation.severity),
-                ),
+                CircleAvatar(child: Icon(_categoryIcon(conversation.category))),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${conversation.roomName} - ${conversation.pcId}: '
-                        '${conversation.issue}',
+                        conversation.subject,
                         style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '${_categoryLabel(conversation.category)} • '
+                        '${conversation.roomName} - ${conversation.pcId}',
                       ),
                       Text(
                         '${conversation.studentName} '
                         '${conversation.studentId.isEmpty ? '' : '(${conversation.studentId})'}',
                       ),
+                      if (conversation.hasLinkedFault)
+                        Text(
+                          'Linked PC issue: ${conversation.issue} '
+                          '(${conversation.severity.toUpperCase()})',
+                        ),
                     ],
                   ),
                 ),
                 SizedBox(
                   width: 210,
-                  child: conversation.canReply
-                      ? DropdownButtonFormField<String>(
-                          value: _statusOptions.contains(conversation.status)
-                              ? conversation.status
-                              : 'open',
-                          decoration: const InputDecoration(
-                            labelText: 'Support status',
-                            isDense: true,
-                          ),
-                          items: [
-                            for (final value in _statusOptions)
-                              DropdownMenuItem(
-                                value: value,
-                                child: Text(_statusLabel(value)),
-                              ),
-                          ],
-                          onChanged: _updatingStatus
-                              ? null
-                              : (value) {
-                                  if (value != null) _updateStatus(value);
-                                },
-                        )
-                      : InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Support status',
-                            isDense: true,
-                          ),
-                          child: Text(
-                            conversation.repaired
-                                ? 'Resolved'
-                                : _statusLabel(conversation.status),
-                          ),
+                  child: DropdownButtonFormField<String>(
+                    value: _statusOptions.contains(conversation.status)
+                        ? conversation.status
+                        : 'open',
+                    decoration: const InputDecoration(
+                      labelText: 'Support status',
+                      isDense: true,
+                    ),
+                    items: [
+                      for (final value in _statusOptions)
+                        DropdownMenuItem(
+                          value: value,
+                          child: Text(_statusLabel(value)),
                         ),
+                    ],
+                    onChanged: _updatingStatus || conversation.repaired
+                        ? null
+                        : (value) {
+                            if (value != null) _updateStatus(value);
+                          },
+                  ),
                 ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: conversation.repaired ? null : _markRepaired,
-                  icon: const Icon(Icons.build),
-                  label: Text(conversation.repaired ? 'Repaired' : 'Mark Repaired'),
-                ),
+                if (conversation.hasLinkedFault) ...[
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: conversation.repaired ? null : _markRepaired,
+                    icon: const Icon(Icons.build),
+                    label: Text(
+                      conversation.repaired ? 'Repaired' : 'Mark Repaired',
+                    ),
+                  ),
+                ],
               ],
             ),
             if (conversation.details.isNotEmpty) ...[
@@ -542,7 +531,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                 decoration: InputDecoration(
                   hintText: conversation.canReply
                       ? 'Reply to the student...'
-                      : 'This issue is resolved. The chat is read-only.',
+                      : 'This request is resolved or closed.',
                   border: const OutlineInputBorder(),
                   counterText: '',
                 ),
@@ -594,6 +583,8 @@ const _statusOptions = [
   'in_progress',
   'waiting_for_student',
   'waiting_for_repair',
+  'resolved',
+  'closed',
 ];
 
 String _statusLabel(String value) {
@@ -605,16 +596,41 @@ String _statusLabel(String value) {
       .join(' ');
 }
 
-Color _severityColor(String value) {
+String _categoryLabel(String value) {
   switch (value.trim().toLowerCase()) {
-    case 'critical':
-    case 'high':
-      return Colors.red;
-    case 'minor':
-    case 'low':
-      return Colors.amber.shade800;
+    case 'hardware':
+      return 'Hardware';
+    case 'peripheral':
+      return 'Peripheral';
+    case 'network':
+      return 'Network';
+    case 'software':
+      return 'Software';
+    case 'account':
+      return 'Account or Login';
+    case 'other':
+      return 'Other';
     default:
-      return Colors.orange;
+      return 'General Assistance';
+  }
+}
+
+IconData _categoryIcon(String value) {
+  switch (value.trim().toLowerCase()) {
+    case 'hardware':
+      return Icons.memory;
+    case 'peripheral':
+      return Icons.keyboard;
+    case 'network':
+      return Icons.lan;
+    case 'software':
+      return Icons.apps;
+    case 'account':
+      return Icons.manage_accounts;
+    case 'other':
+      return Icons.help_outline;
+    default:
+      return Icons.support_agent;
   }
 }
 
@@ -625,15 +641,15 @@ class _AdminMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mine = message.isAdmin;
+    final isMine = message.isAdmin;
     return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 600),
+        constraints: const BoxConstraints(maxWidth: 640),
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: mine
+          color: isMine
               ? Theme.of(context).colorScheme.primaryContainer
               : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
@@ -642,15 +658,24 @@ class _AdminMessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              mine ? 'Admin' : message.senderName,
+              isMine ? 'You' : message.senderName,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             SelectableText(message.message),
             const SizedBox(height: 6),
-            Text(
-              _formatTime(message.createdAt),
-              style: Theme.of(context).textTheme.bodySmall,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _timeText(message.createdAt),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (isMine) ...[
+                  const SizedBox(width: 6),
+                  Icon(message.read ? Icons.done_all : Icons.done, size: 15),
+                ],
+              ],
             ),
           ],
         ),
@@ -658,10 +683,10 @@ class _AdminMessageBubble extends StatelessWidget {
     );
   }
 
-  static String _formatTime(DateTime value) {
+  static String _timeText(DateTime value) {
     final local = value.toLocal();
-    return '${local.month}/${local.day}/${local.year} '
-        '${local.hour.toString().padLeft(2, '0')}:'
-        '${local.minute.toString().padLeft(2, '0')}';
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '${local.month}/${local.day} $hour:$minute';
   }
 }
