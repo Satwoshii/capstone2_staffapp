@@ -2,6 +2,7 @@ import '../models/app_user.dart';
 import '../models/dashboard_summary.dart';
 import '../models/fault_report.dart';
 import '../models/last_known_user_record.dart';
+import '../models/maintenance_record.dart';
 import '../models/pc_health_record.dart';
 import '../models/room_record.dart';
 import '../models/support_chat_message.dart';
@@ -190,6 +191,46 @@ class StaffService {
       ApiEndpoints.lastKnownUsers,
     );
     return _mapList(response['records'], LastKnownUserRecord.fromJson);
+  }
+
+  Future<List<MaintenanceSchedule>> listMaintenanceSchedule() async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.maintenanceSchedule,
+    );
+    return _mapList(response['workstations'], MaintenanceSchedule.fromJson);
+  }
+
+  Future<List<MaintenanceRecord>> listMaintenanceHistory({
+    String? workstationId,
+  }) async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.maintenanceHistory,
+      query: workstationId == null || workstationId.trim().isEmpty
+          ? null
+          : {'workstation_id': workstationId.trim()},
+    );
+    return _mapList(response['records'], MaintenanceRecord.fromJson);
+  }
+
+  Future<void> completePreventiveMaintenance({
+    required String workstationId,
+    required Map<String, bool> checklist,
+    required String overallCondition,
+    required String findings,
+    required String actionsTaken,
+    required String recommendations,
+  }) async {
+    await ApiClient.instance.postJson(
+      ApiEndpoints.completeMaintenance,
+      body: {
+        'workstation_id': workstationId,
+        'checklist': checklist,
+        'overall_condition': overallCondition,
+        'findings': findings.trim(),
+        'actions_taken': actionsTaken.trim(),
+        'recommendations': recommendations.trim(),
+      },
+    );
   }
 
 

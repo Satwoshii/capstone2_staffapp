@@ -19,6 +19,9 @@ class ApiEndpoints {
   static const String faultReports = 'staff/fault_reports.php';
   static const String markRepaired = 'staff/mark_repaired.php';
   static const String lastKnownUsers = 'staff/last_known_users.php';
+  static const String maintenanceSchedule = 'staff/maintenance_schedule.php';
+  static const String maintenanceHistory = 'staff/maintenance_history.php';
+  static const String completeMaintenance = 'staff/complete_maintenance.php';
 
   static const String supportConversations = 'chat/admin_conversations.php';
   static const String supportMessages = 'chat/admin_messages.php';

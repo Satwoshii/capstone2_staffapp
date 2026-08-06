@@ -19,6 +19,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
   Future<List<PcHealthRecord>>? _future;
   Timer? _timer;
   bool _issuesOnly = false;
+  final Set<String> _expandedRecords = <String>{};
 
   // ── Palette (matches the rest of the app) ───────────────────────────────
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
@@ -94,7 +95,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
                   record.pcId,
                   record.status,
                   record.lastStudentEmail ?? '',
-                  readableValue(record.details),
+                  readableHealthDetails(record.details),
                 ].join(' ').toLowerCase().contains(search);
               }).toList()
                 ..sort((a, b) {
@@ -236,72 +237,131 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
   // ── Record card ──────────────────────────────────────────────────────────
   Widget _buildRecordCard(PcHealthRecord record) {
     final style = _styleForStatus(record.status);
-    final details = readableValue(record.details);
+    final recordKey = '${record.roomName}|${record.pcId}';
+    final isExpanded = _expandedRecords.contains(recordKey);
+    final details = isExpanded
+        ? readableHealthDetails(record.details)
+        : readableHealthIssueSummary(record.details);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _cardColor,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: style.color.withValues(alpha: 0.14),
+        onTap: () {
+          setState(() {
+            if (isExpanded) {
+              _expandedRecords.remove(recordKey);
+            } else {
+              _expandedRecords.add(recordKey);
+            }
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isExpanded
+                  ? style.color.withValues(alpha: 0.32)
+                  : _borderColor,
             ),
-            child: Icon(style.icon, color: style.color, size: 22),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: style.color.withValues(alpha: 0.14),
+                ),
+                child: Icon(style.icon, color: style.color, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${record.roomName} · ${record.pcId}',
+                            style: TextStyle(
+                              color: _textColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        _buildStatusBadge(record.status, style),
+                        const SizedBox(width: 6),
+                        AnimatedRotation(
+                          turns: isExpanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: _subTextColor,
+                            size: 22,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Last check: ${formatDateTime(record.lastCheck)}',
+                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
+                    ),
+                    if ((record.lastStudentEmail ?? '').isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'Last student: ${record.lastStudentEmail}',
+                          style: TextStyle(
+                            color: _subTextColor,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ),
+                    if (details.isNotEmpty)
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOut,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            details,
+                            style: TextStyle(
+                              color: _subTextColor,
+                              fontSize: 12.5,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                        '${record.roomName} · ${record.pcId}',
+                        isExpanded
+                            ? 'Click to hide full status'
+                            : 'Click to view all component statuses',
                         style: TextStyle(
-                          color: _textColor,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          color: style.color.withValues(alpha: 0.85),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-                    _buildStatusBadge(record.status, style),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Last check: ${formatDateTime(record.lastCheck)}',
-                  style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                ),
-                if ((record.lastStudentEmail ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      'Last student: ${record.lastStudentEmail}',
-                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                    ),
-                  ),
-                if (details.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      details,
-                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                    ),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

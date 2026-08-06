@@ -7,6 +7,7 @@ import '../widgets/theme_toggle_button.dart';
 import 'account_management_screen.dart';
 import 'last_known_user_screen.dart';
 import 'pc_health_reports_screen.dart';
+import 'preventive_maintenance_screen.dart';
 import 'repair_management_screen.dart';
 import 'reports_screen.dart';
 import 'room_management_screen.dart';
@@ -54,6 +55,11 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         'Repairs',
         Icons.build_rounded,
         RepairManagementScreen(user: widget.user),
+      ),
+      const _MenuItem(
+        'Maintenance',
+        Icons.home_repair_service_rounded,
+        PreventiveMaintenanceScreen(),
       ),
       const _MenuItem(
         'Last Known User',
