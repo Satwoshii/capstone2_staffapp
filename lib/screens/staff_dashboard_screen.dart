@@ -51,7 +51,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       _MenuItem(
         'Accounts',
         Icons.manage_accounts,
-        AccountManagementScreen(currentUserId: widget.user.uid),
+        AccountManagementScreen(currentUser: widget.user),
       ),
     ];
   }
@@ -73,7 +73,11 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
     final selected = _menuItems[_selectedIndex];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Syswatch Admin'),
+        title: Text(
+          widget.user.isSuperAdmin
+              ? 'Syswatch Super Admin'
+              : 'Syswatch Admin',
+        ),
         actions: [
           Tooltip(
             message: AppConfigService.instance.serverUrl,
@@ -88,9 +92,8 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
             child: Chip(
               avatar: const Icon(Icons.person, size: 18),
               label: Text(
-                widget.user.displayName.isEmpty
-                    ? widget.user.email
-                    : widget.user.displayName,
+                '${widget.user.displayName.isEmpty ? widget.user.email : widget.user.displayName}'
+                ' • ${widget.user.roleLabel}',
               ),
             ),
           ),
@@ -119,7 +122,9 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
             labelType: NavigationRailLabelType.all,
             leading: Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: const CircleAvatar(child: Text('A')),
+              child: CircleAvatar(
+                child: Text(widget.user.isSuperAdmin ? 'S' : 'A'),
+              ),
             ),
             destinations: [
               for (final item in _menuItems)

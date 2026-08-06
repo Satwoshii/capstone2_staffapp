@@ -1,5 +1,13 @@
 class AppUser {
-  static const allowedAccountRoles = {'student', 'admin'};
+  static const String studentRole = 'student';
+  static const String adminRole = 'admin';
+  static const String superAdminRole = 'super_admin';
+
+  static const allowedAccountRoles = {
+    studentRole,
+    adminRole,
+    superAdminRole,
+  };
 
   final String uid;
   final String email;
@@ -21,7 +29,25 @@ class AppUser {
     this.updatedAt,
   });
 
-  bool get isAdmin => role == 'admin';
+  bool get isSuperAdmin => role == superAdminRole;
+
+  /// Super administrators are also allowed to use every normal admin screen.
+  bool get isAdmin => role == adminRole || isSuperAdmin;
+
+  bool get isStudent => role == studentRole;
+
+  String get roleLabel {
+    switch (role) {
+      case superAdminRole:
+        return 'SUPER ADMIN';
+      case adminRole:
+        return 'ADMIN';
+      case studentRole:
+        return 'STUDENT';
+      default:
+        return role.replaceAll('_', ' ').toUpperCase();
+    }
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -46,13 +72,23 @@ class AppUser {
         ['display_name', 'displayName', 'name'],
         fallback: email,
       ),
-      role: _string(json, ['role'], fallback: 'student').toLowerCase(),
+      role: _normalizeRole(_string(json, ['role'], fallback: studentRole)),
       studentId: _nullableString(json, ['student_id', 'studentId']),
       active: _bool(json['active'], fallback: true),
       createdAt: _date(json['created_at'] ?? json['createdAt']),
       updatedAt: _date(json['updated_at'] ?? json['updatedAt']),
     );
   }
+}
+
+String _normalizeRole(String value) {
+  final normalized = value
+      .trim()
+      .toLowerCase()
+      .replaceAll('-', '_')
+      .replaceAll(' ', '_');
+  if (normalized == 'superadmin') return AppUser.superAdminRole;
+  return normalized;
 }
 
 String _string(

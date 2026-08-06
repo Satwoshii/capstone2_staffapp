@@ -50,7 +50,7 @@ class StaffService {
 
     if (!user.active) throw Exception('This account is disabled.');
     if (!user.isAdmin) {
-      throw Exception('Access denied. Use an Admin account.');
+      throw Exception('Access denied. Use an Admin or Super Admin account.');
     }
 
     final token = (response['api_token'] ?? '').toString();
@@ -91,14 +91,21 @@ class StaffService {
     String? studentId,
     required bool active,
   }) async {
+    final normalizedRole = role.trim().toLowerCase();
+    if (normalizedRole != AppUser.studentRole &&
+        normalizedRole != AppUser.adminRole) {
+      throw ArgumentError('Only Student and Admin accounts can be created.');
+    }
     await ApiClient.instance.postJson(
       ApiEndpoints.accountCreate,
       body: {
         'display_name': displayName.trim(),
         'email': email.trim().toLowerCase(),
         'password': password,
-        'role': role.trim().toLowerCase(),
-        'student_id': role == 'student' ? studentId?.trim() : null,
+        'role': normalizedRole,
+        'student_id': normalizedRole == AppUser.studentRole
+            ? studentId?.trim()
+            : null,
         'active': active,
       },
     );

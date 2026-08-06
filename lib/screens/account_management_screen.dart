@@ -8,11 +8,11 @@ import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
 
 class AccountManagementScreen extends StatefulWidget {
-  final String currentUserId;
+  final AppUser currentUser;
 
   const AccountManagementScreen({
     super.key,
-    required this.currentUserId,
+    required this.currentUser,
   });
 
   @override
@@ -48,8 +48,21 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
     });
   }
 
+  bool _isCurrentUser(AppUser user) => user.uid == widget.currentUser.uid;
+
+  bool _canResetPassword(AppUser user) {
+    if (widget.currentUser.isSuperAdmin) return true;
+    return _isCurrentUser(user) || user.isStudent;
+  }
+
+  bool _canChangeActive(AppUser user) {
+    if (_isCurrentUser(user) || user.isSuperAdmin) return false;
+    if (widget.currentUser.isSuperAdmin) return true;
+    return user.isStudent;
+  }
+
   Future<void> _toggleActive(AppUser user) async {
-    if (user.uid == widget.currentUserId || _busyUserIds.contains(user.uid)) {
+    if (!_canChangeActive(user) || _busyUserIds.contains(user.uid)) {
       return;
     }
     setState(() => _busyUserIds.add(user.uid));
@@ -286,12 +299,16 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                             labelText: 'Role',
                             prefixIcon: Icon(Icons.admin_panel_settings),
                           ),
-                          items: const [
-                            DropdownMenuItem(
+                          items: [
+                            const DropdownMenuItem(
                               value: 'student',
                               child: Text('Student'),
                             ),
-                            DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                            if (widget.currentUser.isSuperAdmin)
+                              const DropdownMenuItem(
+                                value: 'admin',
+                                child: Text('Admin'),
+                              ),
                           ],
                           onChanged: saving
                               ? null
@@ -374,9 +391,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                 children: [
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Accounts are saved in the central MariaDB database. '
+                          '${widget.currentUser.isSuperAdmin ? 'Super Admin can manage students and administrators. ' : 'Administrators can manage student accounts. '}'
                           'Active students become available to registered Student PCs.',
                         ),
                       ),
@@ -414,6 +432,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           decoration: const InputDecoration(labelText: 'Role'),
                           items: const [
                             DropdownMenuItem(value: 'all', child: Text('All roles')),
+                            DropdownMenuItem(
+                              value: 'super_admin',
+                              child: Text('Super Admin'),
+                            ),
                             DropdownMenuItem(
                               value: 'student',
                               child: Text('Student'),
@@ -484,12 +506,20 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                   itemCount: users.length,
                   itemBuilder: (context, index) {
                     final user = users[index];
-                    final isCurrent = user.uid == widget.currentUserId;
+                    final isCurrent = _isCurrentUser(user);
                     final busy = _busyUserIds.contains(user.uid);
+                    final canResetPassword = _canResetPassword(user);
+                    final canChangeActive = _canChangeActive(user);
                     return Card(
                       child: ListTile(
                         leading: CircleAvatar(
-                          child: Icon(user.active ? Icons.person : Icons.person_off),
+                          child: Icon(
+                            user.isSuperAdmin
+                                ? Icons.verified_user
+                                : user.active
+                                    ? Icons.person
+                                    : Icons.person_off,
+                          ),
                         ),
                         title: Row(
                           children: [
@@ -498,14 +528,20 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                               const SizedBox(width: 8),
                               const Chip(label: Text('You')),
                             ],
+                            if (user.isSuperAdmin) ...[
+                              const SizedBox(width: 8),
+                              const Chip(
+                                avatar: Icon(Icons.shield, size: 16),
+                                label: Text('SUPER ADMIN'),
+                              ),
+                            ],
                           ],
                         ),
                         subtitle: Text(
                           [
                             user.email,
-                            'Role: ${user.role.toUpperCase()}',
-                            if (user.role == 'student' &&
-                                (user.studentId ?? '').isNotEmpty)
+                            'Role: ${user.roleLabel}',
+                            if (user.isStudent && (user.studentId ?? '').isNotEmpty)
                               'Student ID: ${user.studentId}',
                             'Created: ${formatDateTime(user.createdAt)}',
                           ].join('\n'),
@@ -514,8 +550,12 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              tooltip: 'Reset password',
-                              onPressed: () => _showResetPasswordDialog(user),
+                              tooltip: canResetPassword
+                                  ? 'Reset password'
+                                  : 'Only the Super Admin can reset this password',
+                              onPressed: canResetPassword
+                                  ? () => _showResetPasswordDialog(user)
+                                  : null,
                               icon: const Icon(Icons.lock_reset),
                             ),
                             if (busy)
@@ -527,7 +567,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                             else
                               Switch(
                                 value: user.active,
-                                onChanged: isCurrent ? null : (_) => _toggleActive(user),
+                                onChanged: canChangeActive
+                                    ? (_) => _toggleActive(user)
+                                    : null,
                               ),
                           ],
                         ),

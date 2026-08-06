@@ -19,7 +19,14 @@ class SupportChatMessage {
     required this.read,
   });
 
-  bool get isAdmin => senderRole.trim().toLowerCase() == 'admin';
+  bool get isAdmin {
+    final role = senderRole
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
+    return role == 'admin' || role == 'super_admin' || role == 'superadmin';
+  }
 
   factory SupportChatMessage.fromJson(Map<String, dynamic> json) {
     return SupportChatMessage(
