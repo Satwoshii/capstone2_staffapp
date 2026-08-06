@@ -194,7 +194,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       _scrollAfterBuild();
       await _refreshConversations(silent: true);
     } catch (error) {
-      _showMessage(cleanError(error));
+      _showMessage(cleanError(error), isError: true);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -212,7 +212,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       await _refreshConversations(silent: true);
       _showMessage('Support status updated.');
     } catch (error) {
-      _showMessage(cleanError(error));
+      _showMessage(cleanError(error), isError: true);
     } finally {
       if (mounted) setState(() => _updatingStatus = false);
     }
@@ -278,7 +278,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       await _refreshConversations(silent: true);
       _showMessage('PC issue repaired. The linked request is resolved.');
     } catch (error) {
-      _showMessage(cleanError(error));
+      _showMessage(cleanError(error), isError: true);
     }
   }
 
@@ -712,7 +712,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               SizedBox(
                 width: 190,
                 child: DropdownButtonFormField<String>(
-                  value: _statusOptions.contains(conversation.status)
+                  initialValue: _statusOptions.contains(conversation.status)
                       ? conversation.status
                       : 'open',
                   dropdownColor: _cardColor,
@@ -826,18 +826,45 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     });
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {bool isError = false}) {
     if (!mounted) return;
+    final color = isError ? _errorColor : _accentA;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
         backgroundColor: _cardColor,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        width: 400,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: color.withValues(alpha: 0.4)),
+        ),
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: color,
+              size: 16,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: _textColor,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
 
 const _statusOptions = [
   'open',

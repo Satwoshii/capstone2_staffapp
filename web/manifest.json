@@ -1,6 +1,6 @@
 {
-    "name": "itsoadminappcapstone",
-    "short_name": "itsoadminappcapstone",
+    "name": "SysWatch Admin Control",
+    "short_name": "SysWatch",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

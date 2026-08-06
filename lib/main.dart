@@ -120,7 +120,7 @@ class _StartupErrorScreen extends StatelessWidget {
           ),
           const Positioned(
             bottom: 24,
-            right: 24,
+            left: 24,
             child: ThemeToggleButton(),
           ),
         ],

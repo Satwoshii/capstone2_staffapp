@@ -200,7 +200,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
           ),
           Positioned(
             bottom: 24,
-            right: 24,
+            left: 24,
             child: ThemeToggleButton(),
           ),
         ],
