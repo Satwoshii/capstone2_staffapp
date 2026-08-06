@@ -19,6 +19,21 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
   Future<List<LastKnownUserRecord>>? _future;
   Timer? _timer;
 
+  // ── Palette (matches the rest of the app) ───────────────────────────────
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+
+  Color get _cardColor => _isDarkMode ? const Color(0xFF13141A) : Colors.white;
+  Color get _fieldColor =>
+      _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
+  Color get _accentA => const Color(0xFF2EE6C5);
+  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _textColor =>
+      _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
+  Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
+  Color get _borderColor => _isDarkMode
+      ? Colors.white.withValues(alpha: 0.07)
+      : Colors.black.withValues(alpha: 0.09);
+
   @override
   void initState() {
     super.initState();
@@ -45,33 +60,19 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    labelText: 'Search room, PC, student, or email',
-                    prefixIcon: Icon(Icons.search),
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Refresh',
-                onPressed: _refresh,
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: _buildToolbar(),
         ),
         Expanded(
           child: FutureBuilder<List<LastKnownUserRecord>>(
             future: _future,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentA),
+                  ),
+                );
               }
               if (snapshot.hasError) {
                 return MessageState(
@@ -109,31 +110,15 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
 
               return RefreshIndicator(
                 onRefresh: () async => _refresh(),
+                color: _accentA,
                 child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
                   itemCount: records.length,
                   itemBuilder: (context, index) {
                     final record = records[index];
-                    return Card(
-                      child: ListTile(
-                        leading: const CircleAvatar(child: Icon(Icons.person_pin)),
-                        title: Text('${record.roomName} - ${record.pcId}'),
-                        subtitle: Text(
-                          [
-                            'Last user: ${record.displayName}',
-                            if ((record.email ?? '').isNotEmpty &&
-                                record.email != record.displayName)
-                              record.email!,
-                            if ((record.studentId ?? '').isNotEmpty)
-                              'Student ID: ${record.studentId}',
-                            'Login: ${formatDateTime(record.loginTime)}',
-                            if (record.logoutTime != null)
-                              'Logout: ${formatDateTime(record.logoutTime)}',
-                          ].join('\n'),
-                        ),
-                        trailing: Chip(label: Text(record.status.toUpperCase())),
-                        isThreeLine: true,
-                      ),
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _buildRecordCard(record),
                     );
                   },
                 ),
@@ -142,6 +127,177 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  // ── Toolbar ─────────────────────────────────────────────────────────────
+  Widget _buildToolbar() {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _searchController,
+            style: TextStyle(color: _textColor, fontSize: 14),
+            cursorColor: _accentA,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: 'Search room, PC, student, or email',
+              labelStyle: TextStyle(color: _subTextColor, fontSize: 13.5),
+              prefixIcon: Icon(Icons.search_rounded, color: _subTextColor, size: 20),
+              filled: true,
+              fillColor: _fieldColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: _borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: _accentA, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        _buildRefreshButton(),
+      ],
+    );
+  }
+
+  Widget _buildRefreshButton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _fieldColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _borderColor),
+      ),
+      child: IconButton(
+        tooltip: 'Refresh',
+        onPressed: _refresh,
+        icon: Icon(Icons.refresh_rounded, color: _accentB, size: 20),
+      ),
+    );
+  }
+
+  // ── Record card ──────────────────────────────────────────────────────────
+  Widget _buildRecordCard(LastKnownUserRecord record) {
+    final hasEmail = (record.email ?? '').isNotEmpty &&
+        record.email != record.displayName;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  _accentA.withValues(alpha: 0.16),
+                  _accentB.withValues(alpha: 0.12),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Icon(Icons.person_pin_circle_rounded, color: _accentA, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${record.roomName} · ${record.pcId}',
+                        style: TextStyle(
+                          color: _textColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    _buildStatusBadge(record.status),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Last user: ${record.displayName}',
+                  style: TextStyle(color: _textColor.withValues(alpha: 0.85), fontSize: 13),
+                ),
+                if (hasEmail)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      record.email!,
+                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
+                    ),
+                  ),
+                if ((record.studentId ?? '').isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      'Student ID: ${record.studentId}',
+                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  'Login: ${formatDateTime(record.loginTime)}',
+                  style: TextStyle(color: _subTextColor, fontSize: 12.5),
+                ),
+                if (record.logoutTime != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      'Logout: ${formatDateTime(record.logoutTime)}',
+                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final active = status.trim().toLowerCase() == 'active' ||
+        status.trim().toLowerCase() == 'online' ||
+        status.trim().toLowerCase() == 'logged in';
+    final color = active ? _accentA : _subTextColor;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
     );
   }
 }

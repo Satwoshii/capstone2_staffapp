@@ -24,6 +24,22 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
   Timer? _timer;
   bool _showRepaired = false;
 
+  // ── Palette (matches the rest of the app) ───────────────────────────────
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+
+  Color get _cardColor => _isDarkMode ? const Color(0xFF13141A) : Colors.white;
+  Color get _fieldColor =>
+      _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
+  Color get _accentA => const Color(0xFF2EE6C5);
+  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _textColor =>
+      _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
+  Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
+  Color get _borderColor => _isDarkMode
+      ? Colors.white.withValues(alpha: 0.07)
+      : Colors.black.withValues(alpha: 0.09);
+  Color get _repairedColor => const Color(0xFF2EE6C5);
+
   @override
   void initState() {
     super.initState();
@@ -85,54 +101,115 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
               }
             }
 
-            return AlertDialog(
-              title: const Text('Mark Report Repaired'),
-              content: SizedBox(
-                width: 480,
+            return Dialog(
+              backgroundColor: _cardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: _borderColor),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
                 child: Form(
                   key: formKey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${report.roomName} - ${report.pcId}'),
+                      Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: [
+                                  _accentA.withValues(alpha: 0.18),
+                                  _accentB.withValues(alpha: 0.14),
+                                ],
+                              ),
+                            ),
+                            child: Icon(Icons.build_rounded, color: _accentA, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Mark Report Repaired',
+                            style: TextStyle(
+                              color: _textColor,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        '${report.roomName} · ${report.pcId}',
+                        style: TextStyle(
+                          color: _textColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(report.issue),
+                      Text(
+                        report.issue,
+                        style: TextStyle(color: _subTextColor, fontSize: 13),
+                      ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: notesController,
                         enabled: !saving,
                         maxLines: 4,
-                        decoration: const InputDecoration(
+                        style: TextStyle(color: _textColor, fontSize: 14),
+                        cursorColor: _accentA,
+                        decoration: InputDecoration(
                           labelText: 'Technician Notes / Action Taken',
                           alignLabelWithHint: true,
-                          prefixIcon: Icon(Icons.description_outlined),
+                          labelStyle: TextStyle(color: _subTextColor, fontSize: 13.5),
+                          prefixIcon: Icon(Icons.description_outlined,
+                              color: _subTextColor, size: 20),
+                          filled: true,
+                          fillColor: _fieldColor,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: _borderColor),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: _accentA, width: 1.5),
+                          ),
                         ),
                         validator: (value) => (value ?? '').trim().isEmpty
                             ? 'Enter the repair action or notes.'
                             : null,
                       ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                            style: TextButton.styleFrom(foregroundColor: _subTextColor),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildGradientButton(
+                            label: saving ? 'Saving…' : 'Confirm Repair',
+                            icon: Icons.check_rounded,
+                            loading: saving,
+                            onPressed: saving ? null : save,
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton.icon(
-                  onPressed: saving ? null : save,
-                  icon: saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.check),
-                  label: Text(saving ? 'Saving...' : 'Confirm Repair'),
-                ),
-              ],
             );
           },
         );
@@ -141,50 +218,63 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
     notesController.dispose();
   }
 
+  Widget _buildGradientButton({
+    required String label,
+    required IconData icon,
+    required bool loading,
+    required VoidCallback? onPressed,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: loading
+            ? null
+            : LinearGradient(colors: [_accentA, _accentB]),
+        color: loading ? _accentA.withValues(alpha: 0.25) : null,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          foregroundColor: const Color(0xFF080A0E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        icon: loading
+            ? const SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF080A0E)),
+          ),
+        )
+            : Icon(icon, size: 18),
+        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: const InputDecoration(
-                        labelText: 'Search room, PC, issue, or student',
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilterChip(
-                    selected: _showRepaired,
-                    label: const Text('Include repaired'),
-                    avatar: const Icon(Icons.history, size: 18),
-                    onSelected: (value) => setState(() => _showRepaired = value),
-                  ),
-                  IconButton(
-                    tooltip: 'Refresh',
-                    onPressed: _refresh,
-                    icon: const Icon(Icons.refresh),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: _buildToolbar(),
         ),
         Expanded(
           child: FutureBuilder<List<FaultReport>>(
             future: _future,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentA),
+                  ),
+                );
               }
               if (snapshot.hasError) {
                 return MessageState(
@@ -226,63 +316,16 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
 
               return RefreshIndicator(
                 onRefresh: () async => _refresh(),
+                color: _accentA,
                 child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
                   itemCount: reports.length,
                   itemBuilder: (context, index) {
                     final report = reports[index];
                     final updating = _updating.contains(report.id);
-                    return Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: (report.repaired
-                                  ? Colors.green
-                                  : _severityColor(report.severity))
-                              .withOpacity(0.14),
-                          child: Icon(
-                            report.repaired ? Icons.check_circle : Icons.build,
-                            color: report.repaired
-                                ? Colors.green
-                                : _severityColor(report.severity),
-                          ),
-                        ),
-                        title: Text('${report.roomName} - ${report.pcId}'),
-                        subtitle: Text(
-                          [
-                            report.issue,
-                            if (report.details.isNotEmpty) report.details,
-                            'Severity: ${report.severity.toUpperCase()}',
-                            if ((report.studentEmail ?? '').isNotEmpty)
-                              'Student: ${report.studentEmail}',
-                            'Reported: ${formatDateTime(report.createdAt)}',
-                            if (report.repaired)
-                              'Repaired: ${formatDateTime(report.repairedAt)}',
-                            if ((report.technicianNotes ?? '').isNotEmpty)
-                              'Action: ${report.technicianNotes}',
-                          ].join('\n'),
-                        ),
-                        trailing: report.repaired
-                            ? const Chip(
-                                avatar: Icon(Icons.check, size: 18),
-                                label: Text('Repaired'),
-                              )
-                            : FilledButton.icon(
-                                onPressed: updating
-                                    ? null
-                                    : () => _markRepaired(report),
-                                icon: updating
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(Icons.build, size: 18),
-                                label: const Text('Mark Repaired'),
-                              ),
-                        isThreeLine: true,
-                      ),
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _buildReportCard(report, updating),
                     );
                   },
                 ),
@@ -293,17 +336,214 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
       ],
     );
   }
+
+  // ── Toolbar ─────────────────────────────────────────────────────────────
+  Widget _buildToolbar() {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _searchController,
+            style: TextStyle(color: _textColor, fontSize: 14),
+            cursorColor: _accentA,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: 'Search room, PC, issue, or student',
+              labelStyle: TextStyle(color: _subTextColor, fontSize: 13.5),
+              prefixIcon: Icon(Icons.search_rounded, color: _subTextColor, size: 20),
+              filled: true,
+              fillColor: _fieldColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: _borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: _accentA, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        _buildIncludeRepairedToggle(),
+        const SizedBox(width: 10),
+        _buildRefreshButton(),
+      ],
+    );
+  }
+
+  Widget _buildIncludeRepairedToggle() {
+    return GestureDetector(
+      onTap: () => setState(() => _showRepaired = !_showRepaired),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: _showRepaired ? null : _fieldColor,
+          gradient: _showRepaired
+              ? LinearGradient(
+            colors: [
+              _accentA.withValues(alpha: 0.2),
+              _accentB.withValues(alpha: 0.16),
+            ],
+          )
+              : null,
+          border: Border.all(
+            color: _showRepaired ? _accentA.withValues(alpha: 0.5) : _borderColor,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.history_rounded,
+              size: 18,
+              color: _showRepaired ? _accentA : _subTextColor,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Include repaired',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: _showRepaired ? FontWeight.w600 : FontWeight.w400,
+                color: _showRepaired ? _textColor : _subTextColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRefreshButton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _fieldColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _borderColor),
+      ),
+      child: IconButton(
+        tooltip: 'Refresh',
+        onPressed: _refresh,
+        icon: Icon(Icons.refresh_rounded, color: _accentB, size: 20),
+      ),
+    );
+  }
+
+  // ── Report card ──────────────────────────────────────────────────────────
+  Widget _buildReportCard(FaultReport report, bool updating) {
+    final color = report.repaired ? _repairedColor : _severityColor(report.severity);
+    final lines = <String>[
+      report.issue,
+      if (report.details.isNotEmpty) report.details,
+      'Severity: ${report.severity.toUpperCase()}',
+      if ((report.studentEmail ?? '').isNotEmpty) 'Student: ${report.studentEmail}',
+      'Reported: ${formatDateTime(report.createdAt)}',
+      if (report.repaired) 'Repaired: ${formatDateTime(report.repairedAt)}',
+      if ((report.technicianNotes ?? '').isNotEmpty)
+        'Action: ${report.technicianNotes}',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.14),
+            ),
+            child: Icon(
+              report.repaired ? Icons.check_circle_rounded : Icons.build_rounded,
+              color: color,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${report.roomName} · ${report.pcId}',
+                  style: TextStyle(
+                    color: _textColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  lines.join('\n'),
+                  style: TextStyle(color: _subTextColor, fontSize: 12.5, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          report.repaired
+              ? _buildRepairedBadge()
+              : _buildGradientButton(
+            label: 'Mark Repaired',
+            icon: Icons.build_rounded,
+            loading: updating,
+            onPressed: updating ? null : () => _markRepaired(report),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRepairedBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: _repairedColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _repairedColor.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_rounded, size: 14, color: _repairedColor),
+          const SizedBox(width: 5),
+          Text(
+            'Repaired',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: _repairedColor,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 Color _severityColor(String value) {
   switch (value.trim().toLowerCase()) {
     case 'critical':
     case 'high':
-      return Colors.red;
+      return const Color(0xFFFF6B6B);
     case 'low':
     case 'minor':
-      return Colors.amber.shade800;
+      return const Color(0xFFF7B84F);
     default:
-      return Colors.orange;
+      return const Color(0xFFFF9F5A);
   }
 }
