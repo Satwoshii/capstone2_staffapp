@@ -1,7 +1,7 @@
 #define MyAppName "Syswatch Admin"
-#define MyAppVersion "2.6.0"
+#define MyAppVersion "2.6.1"
 #define MyAppPublisher "NU Clark"
-#define MyAppExeName "itsoadminappcapstone.exe"
+#define MyAppExeName "itsoadminappcapstone.exe."
 #define VCRedistFile "VC_redist.x64.exe"
 
 ; Keep this script in the Flutter project's installer folder.
