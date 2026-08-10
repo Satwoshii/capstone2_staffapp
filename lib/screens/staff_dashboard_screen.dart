@@ -50,7 +50,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
   void initState() {
     super.initState();
     _menuItems = [
-      const _MenuItem('PC Health', Icons.monitor_heart_rounded, PcHealthReportsScreen()),
+      const _MenuItem('Status Report', Icons.monitor_heart_rounded, PcHealthReportsScreen()),
       _MenuItem(
         'Repairs',
         Icons.build_rounded,
@@ -62,7 +62,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         PreventiveMaintenanceScreen(),
       ),
       const _MenuItem(
-        'Last Known User',
+        'Audit Log',
         Icons.person_pin_circle_rounded,
         LastKnownUserScreen(),
       ),
