@@ -6,8 +6,8 @@ import '../services/staff_service.dart';
 import '../widgets/theme_toggle_button.dart';
 import 'account_management_screen.dart';
 import 'last_known_user_screen.dart';
+import 'lab_maintenance_overview_screen.dart';
 import 'pc_health_reports_screen.dart';
-import 'preventive_maintenance_screen.dart';
 import 'repair_management_screen.dart';
 import 'reports_screen.dart';
 import 'room_management_screen.dart';
@@ -59,7 +59,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       const _MenuItem(
         'Maintenance',
         Icons.home_repair_service_rounded,
-        PreventiveMaintenanceScreen(),
+        LabMaintenanceOverviewScreen(),
       ),
       const _MenuItem(
         'Audit Log',

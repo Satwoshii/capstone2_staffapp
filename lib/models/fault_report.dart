@@ -10,9 +10,12 @@ class FaultReport {
   final String source;
   final bool detectedBySystem;
   final DateTime? createdAt;
+  final String workflowStatus;
   final bool repaired;
   final DateTime? repairedAt;
   final String? technicianNotes;
+  final String? teacherNotes;
+  final DateTime? teacherApprovedAt;
 
   const FaultReport({
     required this.id,
@@ -26,9 +29,12 @@ class FaultReport {
     required this.source,
     required this.detectedBySystem,
     this.createdAt,
+    required this.workflowStatus,
     required this.repaired,
     this.repairedAt,
     this.technicianNotes,
+    this.teacherNotes,
+    this.teacherApprovedAt,
   });
 
   factory FaultReport.fromJson(Map<String, dynamic> json) {
@@ -44,9 +50,16 @@ class FaultReport {
       source: (json['source'] ?? 'student_pc').toString(),
       detectedBySystem: _toBool(json['detected_by_system']),
       createdAt: DateTime.tryParse((json['created_at'] ?? '').toString()),
+      workflowStatus: (json['workflow_status'] ??
+              (_toBool(json['repaired']) ? 'resolved' : 'reported'))
+          .toString(),
       repaired: _toBool(json['repaired']),
       repairedAt: DateTime.tryParse((json['repaired_at'] ?? '').toString()),
       technicianNotes: _nullable(json['technician_notes']),
+      teacherNotes: _nullable(json['teacher_notes']),
+      teacherApprovedAt: DateTime.tryParse(
+        (json['teacher_approved_at'] ?? '').toString(),
+      ),
     );
   }
 

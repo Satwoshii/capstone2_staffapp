@@ -84,7 +84,9 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                 if (!dialogContext.mounted || !mounted) return;
                 Navigator.pop(dialogContext);
                 ScaffoldMessenger.of(this.context).showSnackBar(
-                  const SnackBar(content: Text('Report marked as repaired.')),
+                  const SnackBar(
+                    content: Text('Repair submitted for Teacher approval.'),
+                  ),
                 );
                 _refresh();
               } catch (error) {
@@ -133,7 +135,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            'Mark Report Repaired',
+                            'Submit Repair for Teacher Approval',
                             style: TextStyle(
                               color: _textColor,
                               fontSize: 17,
@@ -199,7 +201,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                           ),
                           const SizedBox(width: 8),
                           _buildGradientButton(
-                            label: saving ? 'Saving…' : 'Confirm Repair',
+                            label: saving ? 'Saving…' : 'Submit Repair',
                             icon: Icons.check_rounded,
                             loading: saving,
                             onPressed: saving ? null : save,
@@ -445,6 +447,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
       if ((report.studentEmail ?? '').isNotEmpty) 'Student: ${report.studentEmail}',
       'Reported: ${formatDateTime(report.createdAt)}',
       if (report.repaired) 'Repaired: ${formatDateTime(report.repairedAt)}',
+      'Workflow: ${report.workflowStatus.replaceAll('_', ' ').toUpperCase()}',
       if ((report.technicianNotes ?? '').isNotEmpty)
         'Action: ${report.technicianNotes}',
     ];
@@ -494,14 +497,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          report.repaired
-              ? _buildRepairedBadge()
-              : _buildGradientButton(
-            label: 'Mark Repaired',
-            icon: Icons.build_rounded,
-            loading: updating,
-            onPressed: updating ? null : () => _markRepaired(report),
-          ),
+          _reportAction(report, updating),
         ],
       ),
     );
@@ -527,6 +523,58 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
               fontWeight: FontWeight.w700,
               color: _repairedColor,
               letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _reportAction(FaultReport report, bool updating) {
+    if (report.repaired || report.workflowStatus == 'resolved') {
+      return _buildRepairedBadge();
+    }
+    if (report.workflowStatus == 'awaiting_teacher_approval') {
+      return _workflowBadge(
+        'Awaiting Teacher',
+        const Color(0xFF4F8EF7),
+        Icons.school_rounded,
+      );
+    }
+    if (report.workflowStatus == 'reported') {
+      return _workflowBadge(
+        'Teacher Review',
+        const Color(0xFFF7B84F),
+        Icons.rate_review_rounded,
+      );
+    }
+    return _buildGradientButton(
+      label: 'Submit Repair',
+      icon: Icons.build_rounded,
+      loading: updating,
+      onPressed: updating ? null : () => _markRepaired(report),
+    );
+  }
+
+  Widget _workflowBadge(String label, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

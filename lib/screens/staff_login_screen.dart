@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/app_config_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/theme_toggle_button.dart';
 import 'staff_dashboard_screen.dart';
+import 'teacher_dashboard_screen.dart';
 
 class StaffLoginScreen extends StatefulWidget {
   const StaffLoginScreen({super.key});
@@ -130,7 +132,9 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => StaffDashboardScreen(user: user),
+          builder: (_) => user.isTeacher
+              ? TeacherDashboardScreen(user: user)
+              : StaffDashboardScreen(user: user),
         ),
       );
     } catch (error) {
@@ -274,7 +278,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
             ),
             const SizedBox(height: 4),
             Text(
-              'Intranet Administrator Management',
+              'Intranet Admin, ITSO, and Teacher Management',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: _subTextColor,
@@ -308,6 +312,11 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
               controller: _passwordController,
               enabled: !_loading,
               obscureText: _obscurePassword,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  StaffService.maximumPasswordLength,
+                ),
+              ],
               textInputAction: TextInputAction.done,
               style: TextStyle(color: _textColor, fontSize: 15),
               cursorColor: _accentA,
@@ -331,8 +340,14 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
                   ),
                 ),
               ),
-              validator: (value) =>
-              (value ?? '').isEmpty ? 'Enter your password.' : null,
+              validator: (value) {
+                final length = (value ?? '').runes.length;
+                if (length < StaffService.minimumPasswordLength ||
+                    length > StaffService.maximumPasswordLength) {
+                  return 'Password must contain 8 to 64 characters.';
+                }
+                return null;
+              },
               onFieldSubmitted: (_) => _login(),
             ),
             const SizedBox(height: 8),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
+import '../models/room_record.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
@@ -261,6 +262,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         controller: controller,
                         enabled: !saving,
                         obscureText: obscure,
+                        maxLength: StaffService.maximumPasswordLength,
                         style: TextStyle(color: _textColor),
                         cursorColor: _accentA,
                         decoration: _fieldDecoration(
@@ -277,9 +279,14 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                             ),
                           ),
                         ),
-                        validator: (value) => (value ?? '').length < 8
-                            ? 'Use at least 8 characters.'
-                            : null,
+                        validator: (value) {
+                          final length = (value ?? '').runes.length;
+                          if (length < StaffService.minimumPasswordLength ||
+                              length > StaffService.maximumPasswordLength) {
+                            return 'Use 8 to 64 characters.';
+                          }
+                          return null;
+                        },
                         onFieldSubmitted: (_) => save(),
                       ),
                     ],
@@ -308,12 +315,25 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
 
   // ── Add account dialog ──────────────────────────────────────────────────
   Future<void> _showAddAccountDialog() async {
+    List<RoomRecord> availableRooms = const [];
+    if (widget.currentUser.isSuperAdmin) {
+      try {
+        availableRooms = (await StaffService.instance.listRooms())
+            .where((room) => room.active)
+            .toList();
+      } catch (error) {
+        if (mounted) _showMessage(cleanError(error));
+        return;
+      }
+    }
     final formKey = GlobalKey<FormState>();
     final displayNameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     final studentIdController = TextEditingController();
     String role = 'student';
+    String? assignedRoomName =
+        availableRooms.isEmpty ? null : availableRooms.first.roomName;
     bool active = true;
     bool saving = false;
     bool obscurePassword = true;
@@ -334,6 +354,8 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                   password: passwordController.text,
                   role: role,
                   studentId: role == 'student' ? studentIdController.text : null,
+                  assignedRoomName:
+                      role == AppUser.teacherRole ? assignedRoomName : null,
                   active: active,
                 );
                 if (!dialogContext.mounted || !mounted) return;
@@ -393,6 +415,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           controller: passwordController,
                           enabled: !saving,
                           obscureText: obscurePassword,
+                          maxLength: StaffService.maximumPasswordLength,
                           style: TextStyle(color: _textColor),
                           cursorColor: _accentA,
                           decoration: _fieldDecoration(
@@ -413,9 +436,14 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                               ),
                             ),
                           ),
-                          validator: (value) => (value ?? '').length < 8
-                              ? 'Use at least 8 characters.'
-                              : null,
+                          validator: (value) {
+                            final length = (value ?? '').runes.length;
+                            if (length < StaffService.minimumPasswordLength ||
+                                length > StaffService.maximumPasswordLength) {
+                              return 'Use 8 to 64 characters.';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
@@ -434,6 +462,11 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                               const DropdownMenuItem(
                                 value: 'admin',
                                 child: Text('Admin'),
+                              ),
+                            if (widget.currentUser.isSuperAdmin)
+                              const DropdownMenuItem(
+                                value: 'teacher',
+                                child: Text('Teacher Room Account'),
                               ),
                           ],
                           onChanged: saving
@@ -457,6 +490,43 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                                 (value ?? '').trim().isEmpty
                                 ? 'Student ID is required.'
                                 : null,
+                          ),
+                        ],
+                        if (role == AppUser.teacherRole) ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: assignedRoomName,
+                            dropdownColor: _cardColor,
+                            style: TextStyle(color: _textColor, fontSize: 14.5),
+                            icon: Icon(Icons.expand_more, color: _subTextColor),
+                            decoration: _fieldDecoration(
+                              'Assigned Laboratory Room',
+                              Icons.meeting_room_rounded,
+                            ),
+                            items: availableRooms
+                                .map(
+                                  (room) => DropdownMenuItem(
+                                    value: room.roomName,
+                                    child: Text('Room ${room.roomName}'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: saving
+                                ? null
+                                : (value) => setDialogState(
+                                      () => assignedRoomName = value,
+                                    ),
+                            validator: (_) => role == AppUser.teacherRole &&
+                                    (assignedRoomName == null ||
+                                        assignedRoomName!.trim().isEmpty)
+                                ? 'Create or activate a room first.'
+                                : null,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'This is the shared Teacher login for the selected '
+                            'room. Scheduled teachers in that room use the same account.',
+                            style: TextStyle(color: _subTextColor, fontSize: 12),
                           ),
                         ],
                         const SizedBox(height: 10),
@@ -577,6 +647,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                     user.displayName,
                     user.email,
                     user.studentId ?? '',
+                    user.assignedRoomName ?? '',
                     user.role,
                   ].join(' ').toLowerCase().contains(search);
                 }).toList()
@@ -639,7 +710,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               Expanded(
                 child: Text(
                   'Accounts are saved in the central MariaDB database. '
-                      '${widget.currentUser.isSuperAdmin ? 'Super Admin can manage students and administrators. ' : 'Administrators can manage student accounts. '}'
+                      '${widget.currentUser.isSuperAdmin ? 'Super Admin can manage students, administrators, and one shared Teacher account per room. ' : 'Administrators can manage student accounts. '}'
                       'Active students become available to registered Student PCs.',
                   style: TextStyle(color: _subTextColor, fontSize: 12.5, height: 1.4),
                 ),
@@ -682,6 +753,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                     ),
                     DropdownMenuItem(value: 'student', child: Text('Student')),
                     DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                    DropdownMenuItem(value: 'teacher', child: Text('Teacher')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -857,6 +929,12 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                 if (user.isStudent && (user.studentId ?? '').isNotEmpty)
                   Text(
                     'Student ID: ${user.studentId}',
+                    style: TextStyle(color: _subTextColor, fontSize: 12.5),
+                  ),
+                if (user.isTeacher &&
+                    (user.assignedRoomName ?? '').isNotEmpty)
+                  Text(
+                    'Assigned room: ${user.assignedRoomName}',
                     style: TextStyle(color: _subTextColor, fontSize: 12.5),
                   ),
                 Text(

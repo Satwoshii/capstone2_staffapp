@@ -1,7 +1,7 @@
 name: syswatch_admin
 description: SysWatch Admin intranet management application.
 publish_to: 'none'
-version: 2.6.0+8
+version: 2.8.0+9
 
 environment:
   sdk: ^3.5.0

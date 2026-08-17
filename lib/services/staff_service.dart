@@ -2,6 +2,7 @@ import '../models/app_user.dart';
 import '../models/dashboard_summary.dart';
 import '../models/fault_report.dart';
 import '../models/last_known_user_record.dart';
+import '../models/lab_overview.dart';
 import '../models/maintenance_record.dart';
 import '../models/pc_health_record.dart';
 import '../models/room_record.dart';
@@ -15,6 +16,19 @@ class StaffService {
   StaffService._();
 
   static final StaffService instance = StaffService._();
+
+  static const int minimumPasswordLength = 8;
+  static const int maximumPasswordLength = 64;
+
+  static void validatePasswordLength(String password) {
+    final length = password.runes.length;
+    if (length < minimumPasswordLength || length > maximumPasswordLength) {
+      throw Exception(
+        'Password must contain between $minimumPasswordLength and '
+        '$maximumPasswordLength characters.',
+      );
+    }
+  }
 
   Future<Map<String, dynamic>> health() {
     return ApiClient.instance.getJson(
@@ -31,6 +45,7 @@ class StaffService {
     if (cleanEmail.isEmpty || password.isEmpty) {
       throw Exception('Enter your staff email and password.');
     }
+    validatePasswordLength(password);
 
     final response = await ApiClient.instance.postJson(
       ApiEndpoints.staffLogin,
@@ -50,8 +65,10 @@ class StaffService {
     );
 
     if (!user.active) throw Exception('This account is disabled.');
-    if (!user.isAdmin) {
-      throw Exception('Access denied. Use an Admin or Super Admin account.');
+    if (!user.isStaff) {
+      throw Exception(
+        'Access denied. Use an Admin, Super Admin, or Teacher room account.',
+      );
     }
 
     final token = (response['api_token'] ?? '').toString();
@@ -90,13 +107,18 @@ class StaffService {
     required String password,
     required String role,
     String? studentId,
+    String? assignedRoomName,
     required bool active,
   }) async {
     final normalizedRole = role.trim().toLowerCase();
     if (normalizedRole != AppUser.studentRole &&
-        normalizedRole != AppUser.adminRole) {
-      throw ArgumentError('Only Student and Admin accounts can be created.');
+        normalizedRole != AppUser.adminRole &&
+        normalizedRole != AppUser.teacherRole) {
+      throw ArgumentError(
+        'Only Student, Teacher, and Admin accounts can be created.',
+      );
     }
+    validatePasswordLength(password);
     await ApiClient.instance.postJson(
       ApiEndpoints.accountCreate,
       body: {
@@ -106,6 +128,9 @@ class StaffService {
         'role': normalizedRole,
         'student_id': normalizedRole == AppUser.studentRole
             ? studentId?.trim()
+            : null,
+        'assigned_room_name': normalizedRole == AppUser.teacherRole
+            ? assignedRoomName?.trim()
             : null,
         'active': active,
       },
@@ -126,6 +151,7 @@ class StaffService {
     required String uid,
     required String password,
   }) async {
+    validatePasswordLength(password);
     await ApiClient.instance.postJson(
       ApiEndpoints.accountResetPassword,
       body: {'uid': uid, 'password': password},
@@ -229,6 +255,71 @@ class StaffService {
         'findings': findings.trim(),
         'actions_taken': actionsTaken.trim(),
         'recommendations': recommendations.trim(),
+      },
+    );
+  }
+
+  Future<List<LabOverview>> listLabOverview() async {
+    final response = await ApiClient.instance.getJson(ApiEndpoints.labOverview);
+    return _mapList(response['rooms'], LabOverview.fromJson);
+  }
+
+  Future<LabOverview> teacherOverview() async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.teacherOverview,
+    );
+    final rawRoom = response['room'];
+    if (rawRoom is! Map) throw Exception('Invalid Teacher room response.');
+    return LabOverview.fromJson(
+      rawRoom.map((key, value) => MapEntry(key.toString(), value)),
+    );
+  }
+
+  Future<List<FaultReport>> listTeacherReports() async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.teacherReports,
+    );
+    return _mapList(response['reports'], FaultReport.fromJson);
+  }
+
+  Future<void> createTeacherReport({
+    required String workstationId,
+    required String issue,
+    required String details,
+    required String severity,
+  }) async {
+    await ApiClient.instance.postJson(
+      ApiEndpoints.teacherCreateReport,
+      body: {
+        'workstation_id': workstationId,
+        'issue': issue.trim(),
+        'details': details.trim(),
+        'severity': severity,
+      },
+    );
+  }
+
+  Future<void> forwardTeacherReport({
+    required String reportId,
+    required String notes,
+  }) async {
+    await ApiClient.instance.postJson(
+      ApiEndpoints.teacherForwardReport,
+      body: {'report_id': reportId, 'notes': notes.trim()},
+    );
+  }
+
+  Future<void> verifyTeacherRepair({
+    required String reportId,
+    required bool approved,
+    required String notes,
+  }) async {
+    await ApiClient.instance.postJson(
+      ApiEndpoints.teacherVerifyRepair,
+      body: {
+        'report_id': reportId,
+        'decision': approved ? 'approve' : 'reopen',
+        'notes': notes.trim(),
       },
     );
   }

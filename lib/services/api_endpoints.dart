@@ -22,6 +22,13 @@ class ApiEndpoints {
   static const String maintenanceSchedule = 'staff/maintenance_schedule.php';
   static const String maintenanceHistory = 'staff/maintenance_history.php';
   static const String completeMaintenance = 'staff/complete_maintenance.php';
+  static const String labOverview = 'staff/lab_overview.php';
+
+  static const String teacherOverview = 'teacher/overview.php';
+  static const String teacherReports = 'teacher/reports.php';
+  static const String teacherCreateReport = 'teacher/create_report.php';
+  static const String teacherForwardReport = 'teacher/forward_report.php';
+  static const String teacherVerifyRepair = 'teacher/verify_repair.php';
 
   static const String supportConversations = 'chat/admin_conversations.php';
   static const String supportMessages = 'chat/admin_messages.php';

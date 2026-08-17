@@ -2,11 +2,13 @@ class AppUser {
   static const String studentRole = 'student';
   static const String adminRole = 'admin';
   static const String superAdminRole = 'super_admin';
+  static const String teacherRole = 'teacher';
 
   static const allowedAccountRoles = {
     studentRole,
     adminRole,
     superAdminRole,
+    teacherRole,
   };
 
   final String uid;
@@ -14,6 +16,7 @@ class AppUser {
   final String displayName;
   final String role;
   final String? studentId;
+  final String? assignedRoomName;
   final bool active;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -24,6 +27,7 @@ class AppUser {
     required this.displayName,
     required this.role,
     this.studentId,
+    this.assignedRoomName,
     required this.active,
     this.createdAt,
     this.updatedAt,
@@ -36,12 +40,18 @@ class AppUser {
 
   bool get isStudent => role == studentRole;
 
+  bool get isTeacher => role == teacherRole;
+
+  bool get isStaff => isAdmin || isTeacher;
+
   String get roleLabel {
     switch (role) {
       case superAdminRole:
         return 'SUPER ADMIN';
       case adminRole:
         return 'ADMIN';
+      case teacherRole:
+        return 'TEACHER';
       case studentRole:
         return 'STUDENT';
       default:
@@ -56,6 +66,7 @@ class AppUser {
       'display_name': displayName,
       'role': role,
       'student_id': studentId,
+      'assigned_room_name': assignedRoomName,
       'active': active,
       'created_at': createdAt?.toUtc().toIso8601String(),
       'updated_at': updatedAt?.toUtc().toIso8601String(),
@@ -74,6 +85,10 @@ class AppUser {
       ),
       role: _normalizeRole(_string(json, ['role'], fallback: studentRole)),
       studentId: _nullableString(json, ['student_id', 'studentId']),
+      assignedRoomName: _nullableString(
+        json,
+        ['assigned_room_name', 'assignedRoomName'],
+      ),
       active: _bool(json['active'], fallback: true),
       createdAt: _date(json['created_at'] ?? json['createdAt']),
       updatedAt: _date(json['updated_at'] ?? json['updatedAt']),
