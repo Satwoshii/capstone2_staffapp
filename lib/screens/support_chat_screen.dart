@@ -222,8 +222,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     final conversation = _selected;
     if (conversation == null || !conversation.hasLinkedFault) return;
 
-    final controller = TextEditingController();
     final key = GlobalKey<FormState>();
+    String repairNotes = '';
     final notes = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -235,7 +235,6 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           content: Form(
             key: key,
             child: TextFormField(
-              controller: controller,
               minLines: 3,
               maxLines: 6,
               style: TextStyle(color: _textColor),
@@ -244,6 +243,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               validator: (value) => (value ?? '').trim().isEmpty
                   ? 'Enter the repair action or notes.'
                   : null,
+              onChanged: (value) => repairNotes = value,
             ),
           ),
           actions: [
@@ -257,7 +257,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               gradient: _accentGradient,
               onPressed: () {
                 if (key.currentState?.validate() ?? false) {
-                  Navigator.pop(dialogContext, controller.text.trim());
+                  Navigator.pop(dialogContext, repairNotes.trim());
                 }
               },
             ),
@@ -265,7 +265,6 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         );
       },
     );
-    controller.dispose();
     if (notes == null || notes.isEmpty || conversation.faultReportId == null) {
       return;
     }

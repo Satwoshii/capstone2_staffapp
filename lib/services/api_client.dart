@@ -105,7 +105,22 @@ class ApiClient {
 
       final response = await request.close().timeout(_requestTimeout);
       final rawBody = await utf8.decoder.bind(response).join();
-      final decoded = _decodeResponse(rawBody);
+      Map<String, dynamic> decoded;
+      try {
+        decoded = _decodeResponse(rawBody);
+      } on FormatException {
+        if (_looksLikeHtml(rawBody)) {
+          throw ApiRequestException(
+            statusCode: response.statusCode,
+            code: 'html_response',
+            message: _htmlResponseMessage(
+              endpoint: endpoint,
+              statusCode: response.statusCode,
+            ),
+          );
+        }
+        rethrow;
+      }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ApiRequestException(
@@ -183,6 +198,32 @@ class ApiClient {
       return decoded.map((key, value) => MapEntry(key.toString(), value));
     }
     return <String, dynamic>{'success': true, 'data': decoded};
+  }
+
+  bool _looksLikeHtml(String rawBody) {
+    final text = rawBody.trimLeft().toLowerCase();
+    return text.startsWith('<!doctype html') ||
+        text.startsWith('<html') ||
+        text.startsWith('<head') ||
+        text.startsWith('<body');
+  }
+
+  String _htmlResponseMessage({
+    required String endpoint,
+    required int statusCode,
+  }) {
+    if (statusCode == 404) {
+      return 'The API file was not found: $endpoint. Merge the Teacher Chat '
+          'server patch into C:\\xampp\\htdocs\\syswatch_api without creating '
+          'a nested syswatch_api\\syswatch_api folder.';
+    }
+    if (statusCode >= 500) {
+      return 'The Syswatch server failed while running $endpoint (HTTP '
+          '$statusCode). Import upgrade_teacher_chat_v2_8_1.sql, restart '
+          'Apache, and check C:\\xampp\\apache\\logs\\error.log.';
+    }
+    return 'The server returned an HTML page instead of JSON for $endpoint '
+        '(HTTP $statusCode). Check the API folder and configured server URL.';
   }
 
   String _messageFromResponse(

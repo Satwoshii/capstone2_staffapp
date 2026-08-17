@@ -5,6 +5,7 @@ import '../services/app_config_service.dart';
 import '../services/staff_service.dart';
 import '../widgets/theme_toggle_button.dart';
 import 'account_management_screen.dart';
+import 'admin_teacher_chat_screen.dart';
 import 'last_known_user_screen.dart';
 import 'lab_maintenance_overview_screen.dart';
 import 'pc_health_reports_screen.dart';
@@ -71,6 +72,11 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         'ITSO Support',
         Icons.support_agent_rounded,
         SupportChatScreen(),
+      ),
+      const _MenuItem(
+        'Teacher Chat',
+        Icons.forum_rounded,
+        AdminTeacherChatScreen(),
       ),
       const _MenuItem('Rooms', Icons.meeting_room_rounded, RoomManagementScreen()),
       _MenuItem(

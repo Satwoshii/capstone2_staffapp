@@ -213,8 +213,8 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
 
   // ── Reset password dialog ───────────────────────────────────────────────
   Future<void> _showResetPasswordDialog(AppUser user) async {
-    final controller = TextEditingController();
     final key = GlobalKey<FormState>();
+    String password = '';
     bool saving = false;
     bool obscure = true;
 
@@ -230,7 +230,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               try {
                 await StaffService.instance.resetPassword(
                   uid: user.uid,
-                  password: controller.text,
+                  password: password,
                 );
                 if (!dialogContext.mounted || !mounted) return;
                 Navigator.pop(dialogContext);
@@ -259,7 +259,6 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           style: TextStyle(color: _subTextColor, fontSize: 13.5)),
                       const SizedBox(height: 14),
                       TextFormField(
-                        controller: controller,
                         enabled: !saving,
                         obscureText: obscure,
                         maxLength: StaffService.maximumPasswordLength,
@@ -287,6 +286,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           }
                           return null;
                         },
+                        onChanged: (value) => password = value,
                         onFieldSubmitted: (_) => save(),
                       ),
                     ],
@@ -310,7 +310,6 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
         );
       },
     );
-    controller.dispose();
   }
 
   // ── Add account dialog ──────────────────────────────────────────────────
@@ -327,10 +326,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       }
     }
     final formKey = GlobalKey<FormState>();
-    final displayNameController = TextEditingController();
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-    final studentIdController = TextEditingController();
+    String displayName = '';
+    String email = '';
+    String password = '';
+    String studentId = '';
     String role = 'student';
     String? assignedRoomName =
         availableRooms.isEmpty ? null : availableRooms.first.roomName;
@@ -349,11 +348,11 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               setDialogState(() => saving = true);
               try {
                 await StaffService.instance.createAccount(
-                  displayName: displayNameController.text,
-                  email: emailController.text,
-                  password: passwordController.text,
+                  displayName: displayName.trim(),
+                  email: email.trim(),
+                  password: password,
                   role: role,
-                  studentId: role == 'student' ? studentIdController.text : null,
+                  studentId: role == 'student' ? studentId.trim() : null,
                   assignedRoomName:
                       role == AppUser.teacherRole ? assignedRoomName : null,
                   active: active,
@@ -384,7 +383,6 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         TextFormField(
-                          controller: displayNameController,
                           enabled: !saving,
                           style: TextStyle(color: _textColor),
                           cursorColor: _accentA,
@@ -393,10 +391,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           validator: (value) => (value ?? '').trim().isEmpty
                               ? 'Display name is required.'
                               : null,
+                          onChanged: (value) => displayName = value,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          controller: emailController,
                           enabled: !saving,
                           keyboardType: TextInputType.emailAddress,
                           style: TextStyle(color: _textColor),
@@ -409,10 +407,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                             if (!email.contains('@')) return 'Enter a valid email.';
                             return null;
                           },
+                          onChanged: (value) => email = value,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          controller: passwordController,
                           enabled: !saving,
                           obscureText: obscurePassword,
                           maxLength: StaffService.maximumPasswordLength,
@@ -444,6 +442,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                             }
                             return null;
                           },
+                          onChanged: (value) => password = value,
                         ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
@@ -480,7 +479,6 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         if (role == 'student') ...[
                           const SizedBox(height: 12),
                           TextFormField(
-                            controller: studentIdController,
                             enabled: !saving,
                             style: TextStyle(color: _textColor),
                             cursorColor: _accentA,
@@ -490,6 +488,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                                 (value ?? '').trim().isEmpty
                                 ? 'Student ID is required.'
                                 : null,
+                            onChanged: (value) => studentId = value,
                           ),
                         ],
                         if (role == AppUser.teacherRole) ...[
@@ -558,11 +557,6 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
         );
       },
     );
-
-    displayNameController.dispose();
-    emailController.dispose();
-    passwordController.dispose();
-    studentIdController.dispose();
   }
 
   Widget _buildActiveToggleRow({

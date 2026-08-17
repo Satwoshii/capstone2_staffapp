@@ -29,10 +29,19 @@ class ApiEndpoints {
   static const String teacherCreateReport = 'teacher/create_report.php';
   static const String teacherForwardReport = 'teacher/forward_report.php';
   static const String teacherVerifyRepair = 'teacher/verify_repair.php';
+  static const String teacherChatOverview = 'teacher/chat_overview.php';
+  static const String teacherChatSend = 'teacher/chat_send.php';
 
   static const String supportConversations = 'chat/admin_conversations.php';
   static const String supportMessages = 'chat/admin_messages.php';
   static const String supportSend = 'chat/admin_send.php';
   static const String supportUpdateStatus = 'chat/admin_update_status.php';
   static const String supportMarkRead = 'chat/admin_mark_read.php';
+
+  static const String adminTeacherChatConversations =
+      'chat/teacher_conversations.php';
+  static const String adminTeacherChatMessages = 'chat/teacher_messages.php';
+  static const String adminTeacherChatSend = 'chat/teacher_send.php';
+  static const String adminTeacherChatUpdateStatus =
+      'chat/teacher_update_status.php';
 }

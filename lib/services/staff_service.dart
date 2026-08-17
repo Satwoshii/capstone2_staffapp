@@ -8,6 +8,7 @@ import '../models/pc_health_record.dart';
 import '../models/room_record.dart';
 import '../models/support_chat_message.dart';
 import '../models/support_conversation.dart';
+import '../models/teacher_chat.dart';
 import 'api_client.dart';
 import 'api_endpoints.dart';
 import 'app_config_service.dart';
@@ -321,6 +322,84 @@ class StaffService {
         'decision': approved ? 'approve' : 'reopen',
         'notes': notes.trim(),
       },
+    );
+  }
+
+  Future<(TeacherChatConversation, List<TeacherChatMessage>)>
+      teacherChatOverview() async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.teacherChatOverview,
+    );
+    final rawConversation = response['conversation'];
+    if (rawConversation is! Map) {
+      throw Exception('The server did not return the Teacher chat.');
+    }
+    final conversation = TeacherChatConversation.fromJson(
+      rawConversation.map((key, value) => MapEntry(key.toString(), value)),
+    );
+    final messages = _mapList(
+      response['messages'],
+      TeacherChatMessage.fromJson,
+    );
+    return (conversation, messages);
+  }
+
+  Future<TeacherChatMessage> sendTeacherChatMessage(String message) async {
+    final response = await ApiClient.instance.postJson(
+      ApiEndpoints.teacherChatSend,
+      body: {'message': message.trim()},
+    );
+    return _teacherChatMessage(response);
+  }
+
+  Future<List<TeacherChatConversation>> listAdminTeacherChats() async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.adminTeacherChatConversations,
+    );
+    return _mapList(
+      response['conversations'],
+      TeacherChatConversation.fromJson,
+    );
+  }
+
+  Future<List<TeacherChatMessage>> listAdminTeacherChatMessages(
+    int conversationId,
+  ) async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.adminTeacherChatMessages,
+      query: {'conversation_id': conversationId.toString()},
+    );
+    return _mapList(response['messages'], TeacherChatMessage.fromJson);
+  }
+
+  Future<TeacherChatMessage> sendAdminTeacherChatMessage({
+    required int conversationId,
+    required String message,
+  }) async {
+    final response = await ApiClient.instance.postJson(
+      ApiEndpoints.adminTeacherChatSend,
+      body: {'conversation_id': conversationId, 'message': message.trim()},
+    );
+    return _teacherChatMessage(response);
+  }
+
+  Future<void> updateAdminTeacherChatStatus({
+    required int conversationId,
+    required String status,
+  }) async {
+    await ApiClient.instance.postJson(
+      ApiEndpoints.adminTeacherChatUpdateStatus,
+      body: {'conversation_id': conversationId, 'status': status},
+    );
+  }
+
+  TeacherChatMessage _teacherChatMessage(Map<String, dynamic> response) {
+    final raw = response['message'];
+    if (raw is! Map) {
+      throw Exception('The server did not return the sent chat message.');
+    }
+    return TeacherChatMessage.fromJson(
+      raw.map((key, value) => MapEntry(key.toString(), value)),
     );
   }
 

@@ -407,9 +407,9 @@ class _PreventiveMaintenanceScreenState
     final checklist = <String, bool>{
       for (final key in _checklistLabels.keys) key: false,
     };
-    final findings = TextEditingController();
-    final actions = TextEditingController();
-    final recommendations = TextEditingController();
+    String findings = '';
+    String actions = '';
+    String recommendations = '';
     String condition = 'good';
     bool saving = false;
 
@@ -428,7 +428,7 @@ class _PreventiveMaintenanceScreenState
               );
               return;
             }
-            if (condition != 'good' && findings.text.trim().isEmpty) {
+            if (condition != 'good' && findings.trim().isEmpty) {
               ScaffoldMessenger.of(dialogContext).showSnackBar(
                 const SnackBar(
                   content: Text('Describe the findings for this PC condition.'),
@@ -444,9 +444,9 @@ class _PreventiveMaintenanceScreenState
                 workstationId: item.workstationId,
                 checklist: checklist,
                 overallCondition: condition,
-                findings: findings.text,
-                actionsTaken: actions.text,
-                recommendations: recommendations.text,
+                findings: findings.trim(),
+                actionsTaken: actions.trim(),
+                recommendations: recommendations.trim(),
               );
               if (!dialogContext.mounted || !mounted) return;
               Navigator.pop(dialogContext);
@@ -587,11 +587,23 @@ class _PreventiveMaintenanceScreenState
                                       ),
                             ),
                             const SizedBox(height: 10),
-                            _notesField(findings, 'Findings / problems observed', 3),
+                            _notesField(
+                              'Findings / problems observed',
+                              3,
+                              (value) => findings = value,
+                            ),
                             const SizedBox(height: 10),
-                            _notesField(actions, 'Actions taken', 3),
+                            _notesField(
+                              'Actions taken',
+                              3,
+                              (value) => actions = value,
+                            ),
                             const SizedBox(height: 10),
-                            _notesField(recommendations, 'Recommendations / parts needed', 3),
+                            _notesField(
+                              'Recommendations / parts needed',
+                              3,
+                              (value) => recommendations = value,
+                            ),
                           ],
                         ),
                       ),
@@ -620,19 +632,19 @@ class _PreventiveMaintenanceScreenState
         },
       ),
     );
-
-    findings.dispose();
-    actions.dispose();
-    recommendations.dispose();
   }
 
-  Widget _notesField(TextEditingController controller, String label, int lines) {
+  Widget _notesField(
+    String label,
+    int lines,
+    ValueChanged<String> onChanged,
+  ) {
     return TextField(
-      controller: controller,
       maxLines: lines,
       style: TextStyle(color: _text, fontSize: 13.5),
       cursorColor: _teal,
       decoration: _inputDecoration(label),
+      onChanged: onChanged,
     );
   }
 

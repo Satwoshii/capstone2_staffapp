@@ -9,6 +9,7 @@ import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/theme_toggle_button.dart';
 import 'staff_login_screen.dart';
+import 'teacher_chat_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   final AppUser user;
@@ -151,6 +152,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           const Spacer(),
           Text(widget.user.displayName, style: TextStyle(color: _text)),
           const SizedBox(width: 12),
+          FilledButton.tonalIcon(
+            onPressed: _openChat,
+            icon: const Icon(Icons.forum_rounded),
+            label: const Text('Chat with ITSO'),
+          ),
+          const SizedBox(width: 8),
           IconButton(
             tooltip: 'Refresh',
             onPressed: _refresh,
@@ -168,6 +175,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 : const Icon(Icons.logout_rounded),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openChat() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TeacherChatScreen(user: widget.user),
       ),
     );
   }
@@ -451,8 +467,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Future<void> _showCreateReport(LabOverview room) async {
     String workstationId = room.workstations.first.workstationId;
     String severity = 'medium';
-    final issue = TextEditingController();
-    final details = TextEditingController();
+    String issue = '';
+    String details = '';
     final key = GlobalKey<FormState>();
     bool saving = false;
 
@@ -467,8 +483,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             try {
               await StaffService.instance.createTeacherReport(
                 workstationId: workstationId,
-                issue: issue.text,
-                details: details.text,
+                issue: issue.trim(),
+                details: details.trim(),
                 severity: severity,
               );
               if (!dialogContext.mounted || !mounted) return;
@@ -509,19 +525,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
-                        controller: issue,
                         enabled: !saving,
                         decoration: const InputDecoration(labelText: 'Problem'),
+                        onChanged: (value) => issue = value,
                         validator: (value) => (value ?? '').trim().isEmpty
                             ? 'Describe the problem.'
                             : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
-                        controller: details,
                         enabled: !saving,
                         maxLines: 4,
                         decoration: const InputDecoration(labelText: 'Details'),
+                        onChanged: (value) => details = value,
                         validator: (value) => (value ?? '').trim().isEmpty
                             ? 'Enter report details.'
                             : null,
@@ -562,53 +578,45 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         },
       ),
     );
-    issue.dispose();
-    details.dispose();
   }
 
   Future<void> _showForwardDialog(FaultReport report) async {
-    final notes = TextEditingController();
     await _notesActionDialog(
       title: 'Send ${report.pcId} Report to ITSO',
       label: 'Teacher observations',
-      controller: notes,
       actionLabel: 'Send to ITSO',
-      onSave: () => StaffService.instance.forwardTeacherReport(
+      onSave: (notes) => StaffService.instance.forwardTeacherReport(
         reportId: report.id,
-        notes: notes.text,
+        notes: notes,
       ),
       reportId: report.id,
     );
-    notes.dispose();
   }
 
   Future<void> _showVerifyDialog(FaultReport report, bool approved) async {
-    final notes = TextEditingController();
     await _notesActionDialog(
       title: approved ? 'Confirm ${report.pcId} is Fixed' : 'Reopen ${report.pcId}',
       label: approved ? 'Teacher verification notes' : 'Describe the remaining problem',
-      controller: notes,
       actionLabel: approved ? 'Approve PC' : 'Return to ITSO',
-      onSave: () => StaffService.instance.verifyTeacherRepair(
+      onSave: (notes) => StaffService.instance.verifyTeacherRepair(
         reportId: report.id,
         approved: approved,
-        notes: notes.text,
+        notes: notes,
       ),
       reportId: report.id,
     );
-    notes.dispose();
   }
 
   Future<void> _notesActionDialog({
     required String title,
     required String label,
-    required TextEditingController controller,
     required String actionLabel,
-    required Future<void> Function() onSave,
+    required Future<void> Function(String notes) onSave,
     required String reportId,
   }) async {
     final key = GlobalKey<FormState>();
     bool saving = false;
+    String notes = '';
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -619,7 +627,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             setDialogState(() => saving = true);
             setState(() => _busyReports.add(reportId));
             try {
-              await onSave();
+              await onSave(notes.trim());
               if (!dialogContext.mounted || !mounted) return;
               Navigator.pop(dialogContext);
               _message('Report updated successfully.');
@@ -640,10 +648,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               child: Form(
                 key: key,
                 child: TextFormField(
-                  controller: controller,
                   enabled: !saving,
                   maxLines: 4,
                   decoration: InputDecoration(labelText: label),
+                  onChanged: (value) => notes = value,
                   validator: (value) => (value ?? '').trim().isEmpty
                       ? 'Enter notes before continuing.'
                       : null,

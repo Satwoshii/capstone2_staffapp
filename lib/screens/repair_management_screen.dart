@@ -62,8 +62,8 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
   }
 
   Future<void> _markRepaired(FaultReport report) async {
-    final notesController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    String notes = '';
     bool saving = false;
 
     await showDialog<void>(
@@ -79,7 +79,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
               try {
                 await StaffService.instance.markRepaired(
                   reportId: report.id,
-                  notes: notesController.text,
+                  notes: notes.trim(),
                 );
                 if (!dialogContext.mounted || !mounted) return;
                 Navigator.pop(dialogContext);
@@ -160,7 +160,6 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
-                        controller: notesController,
                         enabled: !saving,
                         maxLines: 4,
                         style: TextStyle(color: _textColor, fontSize: 14),
@@ -189,6 +188,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                         validator: (value) => (value ?? '').trim().isEmpty
                             ? 'Enter the repair action or notes.'
                             : null,
+                        onChanged: (value) => notes = value,
                       ),
                       const SizedBox(height: 20),
                       Row(
@@ -217,7 +217,6 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
         );
       },
     );
-    notesController.dispose();
   }
 
   Widget _buildGradientButton({
