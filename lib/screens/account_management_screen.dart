@@ -111,10 +111,23 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: _textColor,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         backgroundColor: _cardColor,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        width: 400,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: _accentA.withValues(alpha: 0.4)),
+        ),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -171,41 +184,89 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       decoration: BoxDecoration(
         gradient: disabled ? null : _accentGradient,
         color: disabled ? _accentA.withValues(alpha: 0.2) : null,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: disabled
+            ? null
+            : [
+                BoxShadow(
+                  color: _accentA.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 5),
+                ),
+              ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           onTap: onPressed,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (loading)
                   const SizedBox(
-                    width: 16,
-                    height: 16,
+                    width: 18,
+                    height: 18,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF080A0E)),
+                      strokeWidth: 2.5,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Color(0xFF080A0E)),
                     ),
                   )
                 else if (icon != null)
-                  Icon(icon, size: 17, color: const Color(0xFF080A0E)),
-                if (loading || icon != null) const SizedBox(width: 8),
+                  Icon(icon, size: 19, color: const Color(0xFF080A0E)),
+                if (loading || icon != null) const SizedBox(width: 10),
                 Text(
                   label,
                   style: const TextStyle(
                     color: Color(0xFF080A0E),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
                   ),
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDialogBadge(IconData icon) {
+    return Center(
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [
+              _accentA.withValues(alpha: 0.15),
+              _accentB.withValues(alpha: 0.12)
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          border:
+              Border.all(color: _accentA.withValues(alpha: 0.45), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: _accentA.withValues(alpha: 0.2),
+              blurRadius: 24,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            colors: [_accentA, _accentB],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ).createShader(bounds),
+          child: Icon(icon, color: Colors.white, size: 32),
         ),
       ),
     );
@@ -243,26 +304,56 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               }
             }
 
-            return AlertDialog(
-              backgroundColor: _cardColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Text('Reset Password', style: TextStyle(color: _textColor)),
-              content: SizedBox(
-                width: 420,
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: Container(
+                width: 440,
+                padding: const EdgeInsets.fromLTRB(32, 40, 32, 36),
+                decoration: BoxDecoration(
+                  color: _cardColor,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: _accentA.withValues(alpha: 0.35)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black
+                          .withValues(alpha: _isDarkMode ? 0.5 : 0.1),
+                      blurRadius: 60,
+                      offset: const Offset(0, 24),
+                    ),
+                  ],
+                ),
                 child: Form(
                   key: key,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('Account: ${user.displayName}',
-                          style: TextStyle(color: _subTextColor, fontSize: 13.5)),
-                      const SizedBox(height: 14),
+                      _buildDialogBadge(Icons.lock_reset),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Reset Password',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _textColor,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Account: ${user.displayName}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: _subTextColor, fontSize: 13.5),
+                      ),
+                      const SizedBox(height: 24),
                       TextFormField(
                         enabled: !saving,
                         obscureText: obscure,
                         maxLength: StaffService.maximumPasswordLength,
-                        style: TextStyle(color: _textColor),
+                        style: TextStyle(color: _textColor, fontSize: 15),
                         cursorColor: _accentA,
                         decoration: _fieldDecoration(
                           'New Password',
@@ -270,10 +361,11 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           suffixIcon: IconButton(
                             onPressed: saving
                                 ? null
-                                : () => setDialogState(() => obscure = !obscure),
+                                : () =>
+                                    setDialogState(() => obscure = !obscure),
                             icon: Icon(
                               obscure ? Icons.visibility : Icons.visibility_off,
-                              color: _subTextColor,
+                              color: _subTextColor.withValues(alpha: 0.5),
                               size: 20,
                             ),
                           ),
@@ -289,22 +381,29 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         onChanged: (value) => password = value,
                         onFieldSubmitted: (_) => save(),
                       ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: saving
+                                ? null
+                                : () => Navigator.pop(dialogContext),
+                            style: _textButtonStyle,
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 12),
+                          _gradientDialogButton(
+                            label: saving ? 'Saving...' : 'Reset',
+                            loading: saving,
+                            onPressed: saving ? null : save,
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
-                  style: _textButtonStyle,
-                  child: const Text('Cancel'),
-                ),
-                _gradientDialogButton(
-                  label: saving ? 'Saving...' : 'Reset',
-                  loading: saving,
-                  onPressed: saving ? null : save,
-                ),
-              ],
             );
           },
         );
@@ -344,7 +443,8 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             Future<void> save() async {
-              if (saving || !(formKey.currentState?.validate() ?? false)) return;
+              if (saving || !(formKey.currentState?.validate() ?? false))
+                return;
               setDialogState(() => saving = true);
               try {
                 await StaffService.instance.createAccount(
@@ -369,25 +469,53 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               }
             }
 
-            return AlertDialog(
-              backgroundColor: _cardColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Text('Add Account', style: TextStyle(color: _textColor)),
-              content: SizedBox(
-                width: 480,
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: Container(
+                width: 500,
+                padding: const EdgeInsets.fromLTRB(32, 40, 32, 36),
+                decoration: BoxDecoration(
+                  color: _cardColor,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: _accentA.withValues(alpha: 0.35)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black
+                          .withValues(alpha: _isDarkMode ? 0.5 : 0.1),
+                      blurRadius: 60,
+                      offset: const Offset(0, 24),
+                    ),
+                  ],
+                ),
                 child: Form(
                   key: formKey,
                   autovalidateMode: AutovalidateMode.onUserInteraction,
                   child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        _buildDialogBadge(Icons.person_add),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Add Account',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: _textColor,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
                         TextFormField(
                           enabled: !saving,
-                          style: TextStyle(color: _textColor),
+                          style: TextStyle(color: _textColor, fontSize: 15),
                           cursorColor: _accentA,
-                          decoration:
-                          _fieldDecoration('Display Name', Icons.badge_outlined),
+                          decoration: _fieldDecoration(
+                              'Display Name', Icons.badge_outlined),
                           validator: (value) => (value ?? '').trim().isEmpty
                               ? 'Display name is required.'
                               : null,
@@ -397,14 +525,15 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         TextFormField(
                           enabled: !saving,
                           keyboardType: TextInputType.emailAddress,
-                          style: TextStyle(color: _textColor),
+                          style: TextStyle(color: _textColor, fontSize: 15),
                           cursorColor: _accentA,
                           decoration:
-                          _fieldDecoration('Email', Icons.email_outlined),
+                              _fieldDecoration('Email', Icons.email_outlined),
                           validator: (value) {
                             final email = (value ?? '').trim();
                             if (email.isEmpty) return 'Email is required.';
-                            if (!email.contains('@')) return 'Enter a valid email.';
+                            if (!email.contains('@'))
+                              return 'Enter a valid email.';
                             return null;
                           },
                           onChanged: (value) => email = value,
@@ -414,7 +543,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           enabled: !saving,
                           obscureText: obscurePassword,
                           maxLength: StaffService.maximumPasswordLength,
-                          style: TextStyle(color: _textColor),
+                          style: TextStyle(color: _textColor, fontSize: 15),
                           cursorColor: _accentA,
                           decoration: _fieldDecoration(
                             'Temporary Password',
@@ -423,13 +552,14 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                               onPressed: saving
                                   ? null
                                   : () => setDialogState(
-                                    () => obscurePassword = !obscurePassword,
-                              ),
+                                        () =>
+                                            obscurePassword = !obscurePassword,
+                                      ),
                               icon: Icon(
                                 obscurePassword
                                     ? Icons.visibility
                                     : Icons.visibility_off,
-                                color: _subTextColor,
+                                color: _subTextColor.withValues(alpha: 0.5),
                                 size: 20,
                               ),
                             ),
@@ -471,21 +601,21 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           onChanged: saving
                               ? null
                               : (value) {
-                            if (value != null) {
-                              setDialogState(() => role = value);
-                            }
-                          },
+                                  if (value != null) {
+                                    setDialogState(() => role = value);
+                                  }
+                                },
                         ),
                         if (role == 'student') ...[
                           const SizedBox(height: 12),
                           TextFormField(
                             enabled: !saving,
-                            style: TextStyle(color: _textColor),
+                            style: TextStyle(color: _textColor, fontSize: 15),
                             cursorColor: _accentA,
                             decoration:
-                            _fieldDecoration('Student ID', Icons.numbers),
+                                _fieldDecoration('Student ID', Icons.numbers),
                             validator: (value) => role == 'student' &&
-                                (value ?? '').trim().isEmpty
+                                    (value ?? '').trim().isEmpty
                                 ? 'Student ID is required.'
                                 : null,
                             onChanged: (value) => studentId = value,
@@ -525,33 +655,42 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           Text(
                             'This is the shared Teacher login for the selected '
                             'room. Scheduled teachers in that room use the same account.',
-                            style: TextStyle(color: _subTextColor, fontSize: 12),
+                            style:
+                                TextStyle(color: _subTextColor, fontSize: 12),
                           ),
                         ],
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 16),
                         _buildActiveToggleRow(
                           active: active,
                           saving: saving,
-                          onChanged: (value) => setDialogState(() => active = value),
+                          onChanged: (value) =>
+                              setDialogState(() => active = value),
+                        ),
+                        const SizedBox(height: 28),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: saving
+                                  ? null
+                                  : () => Navigator.pop(dialogContext),
+                              style: _textButtonStyle,
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 12),
+                            _gradientDialogButton(
+                              label: saving ? 'Creating...' : 'Create',
+                              icon: Icons.person_add,
+                              loading: saving,
+                              onPressed: saving ? null : save,
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
-                  style: _textButtonStyle,
-                  child: const Text('Cancel'),
-                ),
-                _gradientDialogButton(
-                  label: saving ? 'Creating...' : 'Create',
-                  icon: Icons.person_add,
-                  loading: saving,
-                  onPressed: saving ? null : save,
-                ),
-              ],
             );
           },
         );
