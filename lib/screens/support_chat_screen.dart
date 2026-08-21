@@ -222,8 +222,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     final conversation = _selected;
     if (conversation == null || !conversation.hasLinkedFault) return;
 
+    final controller = TextEditingController();
     final key = GlobalKey<FormState>();
-    String repairNotes = '';
     final notes = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -235,6 +235,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           content: Form(
             key: key,
             child: TextFormField(
+              controller: controller,
               minLines: 3,
               maxLines: 6,
               style: TextStyle(color: _textColor),
@@ -243,7 +244,6 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               validator: (value) => (value ?? '').trim().isEmpty
                   ? 'Enter the repair action or notes.'
                   : null,
-              onChanged: (value) => repairNotes = value,
             ),
           ),
           actions: [
@@ -257,7 +257,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               gradient: _accentGradient,
               onPressed: () {
                 if (key.currentState?.validate() ?? false) {
-                  Navigator.pop(dialogContext, repairNotes.trim());
+                  Navigator.pop(dialogContext, controller.text.trim());
                 }
               },
             ),
@@ -265,6 +265,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         );
       },
     );
+    controller.dispose();
     if (notes == null || notes.isEmpty || conversation.faultReportId == null) {
       return;
     }
@@ -827,43 +828,56 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
   void _showMessage(String message, {bool isError = false}) {
     if (!mounted) return;
-    final color = isError ? _errorColor : _accentA;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: _cardColor,
-        behavior: SnackBarBehavior.floating,
-        width: 400,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        elevation: 8,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color.withValues(alpha: 0.4)),
-        ),
-        content: Row(
-          children: [
-            Icon(
-              isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: color,
-              size: 16,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(
-                  color: _textColor,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
+    final accent = isError ? _errorColor : _accentA;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: isError
+                      ? null
+                      : LinearGradient(colors: [_accentA, _accentB]),
+                  color: isError ? _errorColor.withValues(alpha: 0.15) : null,
+                ),
+                child: Icon(
+                  isError ? Icons.error_outline : Icons.check_rounded,
+                  size: 17,
+                  color: isError ? _errorColor : const Color(0xFF080A0E),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: _textColor,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: _cardColor,
+          behavior: SnackBarBehavior.floating,
+          elevation: 0,
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: Duration(seconds: isError ? 4 : 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: accent.withValues(alpha: 0.35)),
+          ),
         ),
-      ),
-    );
+      );
   }
 }
-
 
 const _statusOptions = [
   'open',

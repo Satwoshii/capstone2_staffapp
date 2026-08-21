@@ -734,7 +734,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               SizedBox(
                 width: 180,
                 child: DropdownButtonFormField<String>(
-                  value: _roleFilter,
+                  initialValue: _roleFilter,
                   dropdownColor: _cardColor,
                   style: TextStyle(color: _textColor, fontSize: 14),
                   icon: Icon(Icons.expand_more, color: _subTextColor),
