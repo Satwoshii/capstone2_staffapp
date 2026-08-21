@@ -129,13 +129,16 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       );
 
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
+      // Always start the authenticated area with a clean navigation stack.
+      // This prevents a previously opened Teacher chat page from surviving
+      // a logout/login cycle.
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => user.isTeacher
               ? TeacherDashboardScreen(user: user)
               : StaffDashboardScreen(user: user),
         ),
+        (route) => false,
       );
     } catch (error) {
       if (!mounted) return;
