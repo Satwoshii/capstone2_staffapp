@@ -568,7 +568,7 @@ class _PreventiveMaintenanceScreenState
                             ),
                             const SizedBox(height: 16),
                             DropdownButtonFormField<String>(
-                              initialValue: condition,
+                              value: condition,
                               decoration: _inputDecoration('Overall PC condition'),
                               dropdownColor: _card,
                               style: TextStyle(color: _text),

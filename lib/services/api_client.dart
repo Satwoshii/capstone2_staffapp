@@ -213,9 +213,16 @@ class ApiClient {
     required int statusCode,
   }) {
     if (statusCode == 404) {
-      return 'The API file was not found: $endpoint. Merge the Teacher Chat '
-          'server patch into C:\\xampp\\htdocs\\syswatch_api without creating '
-          'a nested syswatch_api\\syswatch_api folder.';
+      final teacherChatEndpoint = endpoint.startsWith('teacher/chat_') ||
+          endpoint.startsWith('chat/teacher_');
+      if (teacherChatEndpoint) {
+        return 'The API file was not found: $endpoint. Merge the Teacher Chat '
+            'server files into C:\\xampp\\htdocs\\syswatch_api without '
+            'creating a nested syswatch_api\\syswatch_api folder.';
+      }
+      return 'The core API file was not found: $endpoint. Restore the complete '
+          'syswatch_api folder to C:\\xampp\\htdocs\\syswatch_api and keep '
+          'your existing config\\database.php file.';
     }
     if (statusCode >= 500) {
       return 'The Syswatch server failed while running $endpoint (HTTP '

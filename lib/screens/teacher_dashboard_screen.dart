@@ -11,6 +11,96 @@ import '../widgets/theme_toggle_button.dart';
 import 'staff_login_screen.dart';
 import 'teacher_chat_screen.dart';
 
+const _teacherProblemOptions = <_TeacherProblemOption>[
+  _TeacherProblemOption(
+    label: 'Keyboard problem',
+    severity: 'minor',
+    icon: Icons.keyboard_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Mouse problem',
+    severity: 'minor',
+    icon: Icons.mouse_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Monitor or display problem',
+    severity: 'minor',
+    icon: Icons.monitor_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Software or application problem',
+    severity: 'medium',
+    icon: Icons.apps_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Ethernet or LAN disconnected',
+    severity: 'high',
+    icon: Icons.lan_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Network port or LAN cable damage',
+    severity: 'high',
+    icon: Icons.cable_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Visible physical damage',
+    severity: 'high',
+    icon: Icons.build_circle_outlined,
+  ),
+  _TeacherProblemOption(
+    label: 'PC power or startup problem',
+    severity: 'critical',
+    icon: Icons.power_settings_new_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'CPU problem',
+    severity: 'critical',
+    icon: Icons.memory_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'RAM or memory problem',
+    severity: 'critical',
+    icon: Icons.developer_board_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Disk not detected or disk failure',
+    severity: 'critical',
+    icon: Icons.storage_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Storage health problem',
+    severity: 'critical',
+    icon: Icons.health_and_safety_outlined,
+  ),
+  _TeacherProblemOption(
+    label: 'Low storage capacity',
+    severity: 'critical',
+    icon: Icons.disc_full_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Smoke, sparks, burning smell, or electrical hazard',
+    severity: 'emergency',
+    icon: Icons.local_fire_department_rounded,
+  ),
+  _TeacherProblemOption(
+    label: 'Other workstation problem',
+    severity: 'medium',
+    icon: Icons.report_problem_outlined,
+  ),
+];
+
+class _TeacherProblemOption {
+  final String label;
+  final String severity;
+  final IconData icon;
+
+  const _TeacherProblemOption({
+    required this.label,
+    required this.severity,
+    required this.icon,
+  });
+}
+
 class TeacherDashboardScreen extends StatefulWidget {
   final AppUser user;
 
@@ -37,15 +127,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Color get _sub => _dark ? Colors.white54 : Colors.black54;
   Color get _border =>
       _dark ? Colors.white.withValues(alpha: 0.08) : Colors.black12;
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
-  Color get _errorColor => const Color(0xFFFF6B6B);
-
-  LinearGradient get _accentGradient => LinearGradient(
-        colors: [_accentA, _accentB],
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-      );
 
   @override
   void initState() {
@@ -77,9 +158,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     setState(() => _loggingOut = true);
     await StaffService.instance.logout();
     if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+    Navigator.pushAndRemoveUntil(
+      context,
       MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
-      (route) => false,
+      (_) => false,
     );
   }
 
@@ -108,12 +190,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   future: _future,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: _accentA,
-                          strokeWidth: 2.5,
-                        ),
-                      );
+                      return const Center(child: CircularProgressIndicator());
                     }
                     if (snapshot.hasError) {
                       return _errorState(cleanError(snapshot.error!));
@@ -139,44 +216,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Widget _topBar() {
     final room = widget.user.assignedRoomName ?? 'Unassigned';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       decoration: BoxDecoration(
         color: _card,
         border: Border(bottom: BorderSide(color: _border)),
       ),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  _accentA.withValues(alpha: 0.15),
-                  _accentB.withValues(alpha: 0.12),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border: Border.all(
-                color: _accentA.withValues(alpha: 0.4),
-                width: 1.2,
-              ),
-            ),
-            child: ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [_accentA, _accentB],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ).createShader(bounds),
-              child: const Icon(
-                Icons.school_rounded,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-          ),
+          const Icon(Icons.school_rounded, color: Color(0xFF4F8EF7), size: 30),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,123 +240,31 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             ],
           ),
           const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: _field,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.person_rounded, color: _accentA, size: 17),
-                const SizedBox(width: 7),
-                Text(
-                  widget.user.displayName,
-                  style: TextStyle(
-                    color: _text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          Text(widget.user.displayName, style: TextStyle(color: _text)),
           const SizedBox(width: 12),
-          _gradientButton(
-            label: 'Chat with ITSO',
-            icon: Icons.forum_rounded,
+          FilledButton.tonalIcon(
             onPressed: _openChat,
+            icon: const Icon(Icons.forum_rounded),
+            label: const Text('Chat with ITSO'),
           ),
           const SizedBox(width: 8),
-          _iconTile(
-            icon: Icons.refresh_rounded,
+          IconButton(
             tooltip: 'Refresh',
             onPressed: _refresh,
+            icon: const Icon(Icons.refresh_rounded),
           ),
-          const SizedBox(width: 8),
-          _iconTile(
-            icon: _loggingOut
-                ? Icons.hourglass_top_rounded
-                : Icons.logout_rounded,
+          IconButton(
             tooltip: 'Sign out',
             onPressed: _loggingOut ? null : _logout,
+            icon: _loggingOut
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.logout_rounded),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _iconTile({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback? onPressed,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: SizedBox(
-        width: 40,
-        height: 40,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: _field,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _border),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onPressed,
-              child: Icon(icon, color: _sub, size: 19),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _gradientButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback? onPressed,
-  }) {
-    final disabled = onPressed == null;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: disabled ? null : _accentGradient,
-        color: disabled ? _field : null,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onPressed,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 17,
-                  color: disabled ? _sub : const Color(0xFF080A0E),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: disabled ? _sub : const Color(0xFF080A0E),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -379,12 +334,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   ),
                 ),
               ),
-              _gradientButton(
-                label: 'Report Damaged PC',
-                icon: Icons.report_problem_rounded,
+              FilledButton.icon(
                 onPressed: room.workstations.isEmpty
                     ? null
                     : () => _showCreateReport(room),
+                icon: const Icon(Icons.report_problem_rounded),
+                label: const Text('Report Damaged PC'),
               ),
             ],
           ),
@@ -402,23 +357,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            color.withValues(alpha: _dark ? 0.12 : 0.07),
-            _card,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: _card,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.65), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -609,14 +550,27 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     }
   }
 
+  String? _severityForProblem(String? problemLabel) {
+    if (problemLabel == null) return null;
+    for (final problem in _teacherProblemOptions) {
+      if (problem.label == problemLabel) return problem.severity;
+    }
+    return null;
+  }
+
+  String _severityLabel(String severity) {
+    final value = severity.toLowerCase();
+    return '${value.substring(0, 1).toUpperCase()}${value.substring(1)}';
+  }
+
   String _workflowLabel(String status) {
     return status.replaceAll('_', ' ').toUpperCase();
   }
 
   Future<void> _showCreateReport(LabOverview room) async {
     String workstationId = room.workstations.first.workstationId;
-    String severity = 'medium';
-    String issue = '';
+    String? selectedProblem;
+    String? severity;
     String details = '';
     final key = GlobalKey<FormState>();
     bool saving = false;
@@ -628,13 +582,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         builder: (context, setDialogState) {
           Future<void> save() async {
             if (saving || !(key.currentState?.validate() ?? false)) return;
+            final selectedSeverity = _severityForProblem(selectedProblem);
+            if (selectedProblem == null || selectedSeverity == null) return;
             setDialogState(() => saving = true);
             try {
               await StaffService.instance.createTeacherReport(
                 workstationId: workstationId,
-                issue: issue.trim(),
+                issue: selectedProblem!.trim(),
                 details: details.trim(),
-                severity: severity,
+                severity: selectedSeverity,
               );
               if (!dialogContext.mounted || !mounted) return;
               Navigator.pop(dialogContext);
@@ -673,12 +629,42 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                 ),
                       ),
                       const SizedBox(height: 12),
-                      TextFormField(
-                        enabled: !saving,
-                        decoration: const InputDecoration(labelText: 'Problem'),
-                        onChanged: (value) => issue = value,
-                        validator: (value) => (value ?? '').trim().isEmpty
-                            ? 'Describe the problem.'
+                      DropdownButtonFormField<String>(
+                        value: selectedProblem,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Problem',
+                          helperText: 'Select the closest matching problem.',
+                        ),
+                        items: _teacherProblemOptions
+                            .map(
+                              (problem) => DropdownMenuItem<String>(
+                                value: problem.label,
+                                child: Row(
+                                  children: [
+                                    Icon(problem.icon, size: 19),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        problem.label,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: saving
+                            ? null
+                            : (value) {
+                                setDialogState(() {
+                                  selectedProblem = value;
+                                  severity = _severityForProblem(value);
+                                });
+                              },
+                        validator: (value) => value == null
+                            ? 'Select the workstation problem.'
                             : null,
                       ),
                       const SizedBox(height: 12),
@@ -692,21 +678,37 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                             : null,
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: severity,
-                        decoration: const InputDecoration(labelText: 'Severity'),
-                        items: const [
-                          DropdownMenuItem(value: 'minor', child: Text('Minor')),
-                          DropdownMenuItem(value: 'medium', child: Text('Medium')),
-                          DropdownMenuItem(value: 'high', child: Text('High')),
-                          DropdownMenuItem(value: 'critical', child: Text('Critical')),
-                          DropdownMenuItem(value: 'emergency', child: Text('Emergency')),
-                        ],
-                        onChanged: saving
-                            ? null
-                            : (value) => setDialogState(
-                                  () => severity = value ?? severity,
-                                ),
+                      InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Severity',
+                          helperText:
+                              'Severity is assigned automatically from the problem.',
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              severity == null
+                                  ? Icons.auto_awesome_outlined
+                                  : Icons.shield_rounded,
+                              size: 19,
+                              color: severity == null
+                                  ? _sub
+                                  : _severityColor(severity!),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              severity == null
+                                  ? 'Select a problem first'
+                                  : _severityLabel(severity!),
+                              style: TextStyle(
+                                color: severity == null
+                                    ? _sub
+                                    : _severityColor(severity!),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -864,18 +866,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline_rounded, size: 52, color: _errorColor),
+          const Icon(Icons.error_outline_rounded, size: 52),
           const SizedBox(height: 12),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: _text),
-          ),
-          const SizedBox(height: 16),
-          _gradientButton(
-            label: 'Retry',
-            icon: Icons.refresh_rounded,
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          FilledButton.icon(
             onPressed: _refresh,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
           ),
         ],
       ),
@@ -883,48 +881,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   void _message(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: _accentGradient,
-                ),
-                child: const Icon(
-                  Icons.info_outline_rounded,
-                  size: 17,
-                  color: Color(0xFF080A0E),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  message,
-                  style: TextStyle(
-                    color: _text,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: _card,
-          behavior: SnackBarBehavior.floating,
-          elevation: 0,
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: _accentA.withValues(alpha: 0.35)),
-          ),
-        ),
-      );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }

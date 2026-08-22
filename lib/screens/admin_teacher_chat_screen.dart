@@ -360,7 +360,7 @@ class _AdminTeacherChatScreenState extends State<AdminTeacherChatScreen> {
           SizedBox(
             width: 180,
             child: DropdownButtonFormField<String>(
-              initialValue: conversation.status,
+              value: conversation.status,
               decoration: const InputDecoration(
                 labelText: 'Status',
                 isDense: true,
