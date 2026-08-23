@@ -1036,6 +1036,150 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return status.replaceAll('_', ' ').toUpperCase();
   }
 
+  // ── Shared dialog styling helpers ──────────────────────────────────────────
+  ShapeBorder get _dialogShape => RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(22),
+    side: BorderSide(color: _border),
+  );
+
+  Widget _dialogTitle(String text, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                _accentA.withValues(alpha: 0.16),
+                _accentB.withValues(alpha: 0.12),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: _accentA.withValues(alpha: 0.24)),
+          ),
+          child: Icon(icon, color: _accentA, size: 18),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: _text,
+              fontSize: 16.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _dialogFieldDecoration({
+    required String label,
+    String? helperText,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: _sub, fontSize: 13),
+      helperText: helperText,
+      helperStyle: TextStyle(color: _sub, fontSize: 11.3),
+      helperMaxLines: 3,
+      filled: true,
+      fillColor: _field,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: _border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: _border),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: _border.withValues(alpha: 0.5)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: _accentA.withValues(alpha: 0.8), width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: _errorColor),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: _errorColor, width: 1.6),
+      ),
+      errorStyle: TextStyle(color: _errorColor, fontSize: 11.5),
+    );
+  }
+
+  Widget _dialogCancelButton(VoidCallback? onPressed) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: _sub,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+    );
+  }
+
+  Widget _dialogPrimaryButton({
+    required String label,
+    required VoidCallback? onPressed,
+    bool loading = false,
+  }) {
+    final disabled = onPressed == null;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: disabled ? null : _accentGradient,
+              color: disabled ? _field : null,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (loading) ...[
+                  SizedBox(
+                    width: 15,
+                    height: 15,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        disabled ? _sub : const Color(0xFF080A0E),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: disabled ? _sub : const Color(0xFF080A0E),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showCreateReport(LabOverview room) async {
     String workstationId = room.workstations.first.workstationId;
     String? selectedProblem;
@@ -1073,7 +1217,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
           return AlertDialog(
             backgroundColor: _card,
-            title: const Text('Report Damaged PC'),
+            shape: _dialogShape,
+            titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 6),
+            contentPadding: const EdgeInsets.fromLTRB(22, 6, 22, 8),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+            title: _dialogTitle('Report Damaged PC', Icons.report_problem_rounded),
             content: SizedBox(
               width: 520,
               child: Form(
@@ -1084,7 +1232,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     children: [
                       DropdownButtonFormField<String>(
                         value: workstationId,
-                        decoration: const InputDecoration(labelText: 'PC'),
+                        dropdownColor: _card,
+                        iconEnabledColor: _accentA,
+                        style: TextStyle(color: _text, fontSize: 14),
+                        decoration: _dialogFieldDecoration(label: 'PC'),
                         items: room.workstations
                             .map((pc) => DropdownMenuItem(
                           value: pc.workstationId,
@@ -1097,12 +1248,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                               () => workstationId = value ?? workstationId,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       DropdownButtonFormField<String>(
                         value: selectedProblem,
                         isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Problem',
+                        dropdownColor: _card,
+                        iconEnabledColor: _accentA,
+                        style: TextStyle(color: _text, fontSize: 14),
+                        decoration: _dialogFieldDecoration(
+                          label: 'Problem',
                           helperText: 'Select the closest matching problem.',
                         ),
                         items: _teacherProblemOptions
@@ -1111,7 +1265,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                             value: problem.label,
                             child: Row(
                               children: [
-                                Icon(problem.icon, size: 19),
+                                Icon(problem.icon, size: 18, color: _accentA),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
@@ -1136,20 +1290,22 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                             ? 'Select the workstation problem.'
                             : null,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       TextFormField(
                         enabled: !saving,
                         maxLines: 4,
-                        decoration: const InputDecoration(labelText: 'Details'),
+                        style: TextStyle(color: _text, fontSize: 14),
+                        cursorColor: _accentA,
+                        decoration: _dialogFieldDecoration(label: 'Details'),
                         onChanged: (value) => details = value,
                         validator: (value) => (value ?? '').trim().isEmpty
                             ? 'Enter report details.'
                             : null,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Severity',
+                        decoration: _dialogFieldDecoration(
+                          label: 'Severity',
                           helperText:
                           'Severity is assigned automatically from the problem.',
                         ),
@@ -1159,7 +1315,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                               severity == null
                                   ? Icons.auto_awesome_outlined
                                   : Icons.shield_rounded,
-                              size: 19,
+                              size: 18,
                               color: severity == null
                                   ? _sub
                                   : _severityColor(severity!),
@@ -1174,6 +1330,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                     ? _sub
                                     : _severityColor(severity!),
                                 fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
                               ),
                             ),
                           ],
@@ -1185,13 +1342,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               ),
             ),
             actions: [
-              TextButton(
-                onPressed: saving ? null : () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
+              _dialogCancelButton(saving ? null : () => Navigator.pop(dialogContext)),
+              _dialogPrimaryButton(
+                label: saving ? 'Sending...' : 'Send to ITSO',
                 onPressed: saving ? null : save,
-                child: Text(saving ? 'Sending...' : 'Send to ITSO'),
+                loading: saving,
               ),
             ],
           );
@@ -1203,6 +1358,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Future<void> _showForwardDialog(FaultReport report) async {
     await _notesActionDialog(
       title: 'Send ${report.pcId} Report to ITSO',
+      icon: Icons.send_rounded,
       label: 'Teacher observations',
       actionLabel: 'Send to ITSO',
       onSave: (notes) => StaffService.instance.forwardTeacherReport(
@@ -1216,6 +1372,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Future<void> _showVerifyDialog(FaultReport report, bool approved) async {
     await _notesActionDialog(
       title: approved ? 'Confirm ${report.pcId} is Fixed' : 'Reopen ${report.pcId}',
+      icon: approved ? Icons.check_circle_rounded : Icons.replay_rounded,
       label: approved ? 'Teacher verification notes' : 'Describe the remaining problem',
       actionLabel: approved ? 'Approve PC' : 'Return to ITSO',
       onSave: (notes) => StaffService.instance.verifyTeacherRepair(
@@ -1229,6 +1386,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Future<void> _notesActionDialog({
     required String title,
+    required IconData icon,
     required String label,
     required String actionLabel,
     required Future<void> Function(String notes) onSave,
@@ -1262,7 +1420,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
           return AlertDialog(
             backgroundColor: _card,
-            title: Text(title),
+            shape: _dialogShape,
+            titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 6),
+            contentPadding: const EdgeInsets.fromLTRB(22, 6, 22, 8),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+            title: _dialogTitle(title, icon),
             content: SizedBox(
               width: 460,
               child: Form(
@@ -1270,7 +1432,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 child: TextFormField(
                   enabled: !saving,
                   maxLines: 4,
-                  decoration: InputDecoration(labelText: label),
+                  style: TextStyle(color: _text, fontSize: 14),
+                  cursorColor: _accentA,
+                  decoration: _dialogFieldDecoration(label: label),
                   onChanged: (value) => notes = value,
                   validator: (value) => (value ?? '').trim().isEmpty
                       ? 'Enter notes before continuing.'
@@ -1279,13 +1443,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               ),
             ),
             actions: [
-              TextButton(
-                onPressed: saving ? null : () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
+              _dialogCancelButton(saving ? null : () => Navigator.pop(dialogContext)),
+              _dialogPrimaryButton(
+                label: saving ? 'Saving...' : actionLabel,
                 onPressed: saving ? null : save,
-                child: Text(saving ? 'Saving...' : actionLabel),
+                loading: saving,
               ),
             ],
           );
@@ -1295,22 +1457,106 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   void _showPcDetails(LabWorkstation pc) {
+    final color = _conditionColor(pc.maintenanceColor);
+    final connectionColor = pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey;
+
+    Widget row(IconData icon, String label, String value, {Color? valueColor}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: (valueColor ?? _accentA).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, size: 16, color: valueColor ?? _accentA),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(color: _sub, fontSize: 12.5),
+              ),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                color: valueColor ?? _text,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: _card,
-        title: Text(pc.pcId),
-        content: Text(
-          'Connection: ${pc.connectionStatus.toUpperCase()}\n'
-              'Device status: ${pc.deviceStatus}\n'
-              'Active problems: ${pc.activeProblemCount}\n'
-              'Major problems: ${pc.majorProblemCount}',
+        shape: _dialogShape,
+        titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 4),
+        contentPadding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+        title: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withValues(alpha: 0.24)),
+              ),
+              child: Icon(Icons.computer_rounded, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              pc.pcId,
+              style: TextStyle(
+                color: _text,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              row(
+                Icons.wifi_rounded,
+                'Connection',
+                pc.connectionStatus.toUpperCase(),
+                valueColor: connectionColor,
+              ),
+              Divider(color: _border, height: 4),
+              row(Icons.info_outline_rounded, 'Device status', pc.deviceStatus),
+              Divider(color: _border, height: 4),
+              row(
+                Icons.report_outlined,
+                'Active problems',
+                '${pc.activeProblemCount}',
+                valueColor: pc.activeProblemCount > 0 ? color : null,
+              ),
+              Divider(color: _border, height: 4),
+              row(
+                Icons.priority_high_rounded,
+                'Major problems',
+                '${pc.majorProblemCount}',
+                valueColor: pc.majorProblemCount > 0 ? const Color(0xFFE53935) : null,
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
+          _dialogCancelButton(() => Navigator.pop(context)),
         ],
       ),
     );
