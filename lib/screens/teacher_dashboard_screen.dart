@@ -127,6 +127,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Color get _sub => _dark ? Colors.white54 : Colors.black54;
   Color get _border =>
       _dark ? Colors.white.withValues(alpha: 0.08) : Colors.black12;
+  Color get _accentA => const Color(0xFF2EE6C5);
+  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _errorColor => const Color(0xFFFF6B6B);
+
+  LinearGradient get _accentGradient => LinearGradient(
+    colors: [_accentA, _accentB],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
 
   @override
   void initState() {
@@ -161,7 +170,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
-      (_) => false,
+          (_) => false,
     );
   }
 
@@ -182,6 +191,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       backgroundColor: _background,
       body: Stack(
         children: [
+          _ambientBackground(),
           Column(
             children: [
               _topBar(),
@@ -190,7 +200,22 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   future: _future,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return Center(
+                        child: Container(
+                          width: 58,
+                          height: 58,
+                          decoration: BoxDecoration(
+                            color: _card,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: _border),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: CircularProgressIndicator(
+                            color: _accentA,
+                            strokeWidth: 2.4,
+                          ),
+                        ),
+                      );
                     }
                     if (snapshot.hasError) {
                       return _errorState(cleanError(snapshot.error!));
@@ -213,18 +238,98 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
+  Widget _ambientBackground() {
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          Positioned(
+            top: -180,
+            left: -120,
+            child: Container(
+              width: 520,
+              height: 520,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    _accentB.withValues(alpha: _dark ? 0.10 : 0.07),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: -180,
+            bottom: -220,
+            child: Container(
+              width: 620,
+              height: 620,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    _accentA.withValues(alpha: _dark ? 0.08 : 0.06),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _topBar() {
     final room = widget.user.assignedRoomName ?? 'Unassigned';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
       decoration: BoxDecoration(
-        color: _card,
+        color: _card.withValues(alpha: _dark ? 0.96 : 0.98),
         border: Border(bottom: BorderSide(color: _border)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _dark ? 0.16 : 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const Icon(Icons.school_rounded, color: Color(0xFF4F8EF7), size: 30),
-          const SizedBox(width: 12),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: LinearGradient(
+                colors: [
+                  _accentA.withValues(alpha: 0.18),
+                  _accentB.withValues(alpha: 0.14),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(
+                color: _accentA.withValues(alpha: 0.38),
+                width: 1.2,
+              ),
+            ),
+            child: ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(
+                colors: [_accentA, _accentB],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ).createShader(bounds),
+              child: const Icon(
+                Icons.school_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+          ),
+          const SizedBox(width: 13),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -233,38 +338,143 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 style: TextStyle(
                   color: _text,
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.1,
                 ),
               ),
-              Text('Room $room', style: TextStyle(color: _sub, fontSize: 12)),
+              const SizedBox(height: 2),
+              Text(
+                'Laboratory $room · Monitoring Dashboard',
+                style: TextStyle(color: _sub, fontSize: 11.5),
+              ),
             ],
           ),
           const Spacer(),
-          Text(widget.user.displayName, style: TextStyle(color: _text)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: _field,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: _accentA.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.person_rounded, color: _accentA, size: 15),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.user.displayName,
+                  style: TextStyle(
+                    color: _text,
+                    fontSize: 12.8,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(width: 12),
-          FilledButton.tonalIcon(
+          _gradientButton(
+            label: 'Chat with ITSO',
+            icon: Icons.forum_rounded,
             onPressed: _openChat,
-            icon: const Icon(Icons.forum_rounded),
-            label: const Text('Chat with ITSO'),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            tooltip: 'Refresh',
+          _iconTile(
+            icon: Icons.refresh_rounded,
+            tooltip: 'Refresh dashboard',
             onPressed: _refresh,
-            icon: const Icon(Icons.refresh_rounded),
           ),
-          IconButton(
+          const SizedBox(width: 8),
+          _iconTile(
+            icon: _loggingOut
+                ? Icons.hourglass_top_rounded
+                : Icons.logout_rounded,
             tooltip: 'Sign out',
             onPressed: _loggingOut ? null : _logout,
-            icon: _loggingOut
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.logout_rounded),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _iconTile({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: _field,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _border),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onPressed,
+              child: Icon(icon, color: _sub, size: 19),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _gradientButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    final disabled = onPressed == null;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: disabled ? null : _accentGradient,
+        color: disabled ? _field : null,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 17,
+                  color: disabled ? _sub : const Color(0xFF080A0E),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: disabled ? _sub : const Color(0xFF080A0E),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -281,118 +491,249 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Widget _content(LabOverview room, List<FaultReport> reports) {
     final openReports = reports.where((report) => !report.repaired).toList();
     final color = _conditionColor(room.maintenanceColor);
+
     return RefreshIndicator(
+      color: _accentA,
       onRefresh: () async => _refresh(),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 22, 24, 80),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 86),
         children: [
-          _roomHeader(room, color),
-          const SizedBox(height: 18),
-          Text(
-            'LAB MAP',
-            style: TextStyle(
-              color: _sub,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.1,
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1540),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _roomHeader(room, color),
+                  const SizedBox(height: 18),
+                  _sectionCard(
+                    icon: Icons.grid_view_rounded,
+                    title: 'Lab Map',
+                    subtitle: 'Select a workstation to view its current condition.',
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final columns = constraints.maxWidth >= 1320
+                            ? 7
+                            : constraints.maxWidth >= 1050
+                            ? 6
+                            : constraints.maxWidth >= 780
+                            ? 4
+                            : 2;
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: columns,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 1.28,
+                          ),
+                          itemCount: room.workstations.length,
+                          itemBuilder: (context, index) =>
+                              _pcTile(room.workstations[index]),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _sectionCard(
+                    icon: Icons.assignment_rounded,
+                    title: 'Room Reports',
+                    subtitle: openReports.isEmpty
+                        ? 'No unresolved reports in Laboratory ${room.roomName}.'
+                        : '${openReports.length} unresolved report${openReports.length == 1 ? '' : 's'} need attention.',
+                    trailing: _gradientButton(
+                      label: 'Report Damaged PC',
+                      icon: Icons.report_problem_rounded,
+                      onPressed: room.workstations.isEmpty
+                          ? null
+                          : () => _showCreateReport(room),
+                    ),
+                    child: openReports.isEmpty
+                        ? _emptyReports()
+                        : Column(
+                      children: [
+                        for (final report in openReports)
+                          _reportCard(report),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 1100
-                  ? 8
-                  : constraints.maxWidth >= 760
-                      ? 6
-                      : 4;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 1.25,
-                ),
-                itemCount: room.workstations.length,
-                itemBuilder: (context, index) =>
-                    _pcTile(room.workstations[index]),
-              );
-            },
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Widget child,
+    Widget? trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _card.withValues(alpha: _dark ? 0.92 : 0.98),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _dark ? 0.12 : 0.035),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
-          const SizedBox(height: 24),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  'ROOM REPORTS (${openReports.length} OPEN)',
-                  style: TextStyle(
-                    color: _sub,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.1,
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _accentA.withValues(alpha: 0.16),
+                      _accentB.withValues(alpha: 0.12),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _accentA.withValues(alpha: 0.22)),
+                ),
+                child: Icon(icon, color: _accentA, size: 19),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: _text,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(color: _sub, fontSize: 11.8),
+                    ),
+                  ],
                 ),
               ),
-              FilledButton.icon(
-                onPressed: room.workstations.isEmpty
-                    ? null
-                    : () => _showCreateReport(room),
-                icon: const Icon(Icons.report_problem_rounded),
-                label: const Text('Report Damaged PC'),
-              ),
+              if (trailing != null) trailing,
             ],
           ),
-          const SizedBox(height: 10),
-          if (openReports.isEmpty)
-            _emptyReports()
-          else
-            for (final report in openReports) _reportCard(report),
+          const SizedBox(height: 16),
+          child,
         ],
       ),
     );
   }
 
   Widget _roomHeader(LabOverview room, Color color) {
+    final healthy = room.maintenanceColor == 'green';
+    final warning = room.maintenanceColor == 'yellow';
+    final statusText = healthy
+        ? 'All reported checks are clear.'
+        : warning
+        ? 'The room has 1–3 active minor problems.'
+        : 'The room has many problems or a high/critical problem.';
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: _card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.65), width: 2),
+        gradient: LinearGradient(
+          colors: [
+            color.withValues(alpha: _dark ? 0.16 : 0.09),
+            _card.withValues(alpha: 0.96),
+            _accentB.withValues(alpha: _dark ? 0.035 : 0.025),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withValues(alpha: 0.48), width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: _dark ? 0.10 : 0.06),
+            blurRadius: 30,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 68,
-            height: 68,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(18),
+              color: color.withValues(alpha: 0.12),
+              border: Border.all(color: color.withValues(alpha: 0.28)),
             ),
-            child: Icon(Icons.meeting_room_rounded, color: color, size: 34),
+            child: Icon(Icons.meeting_room_rounded, color: color, size: 31),
           ),
-          const SizedBox(width: 18),
+          const SizedBox(width: 17),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Laboratory ${room.roomName}',
-                  style: TextStyle(
-                    color: _text,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      'Laboratory ${room.roomName}',
+                      style: TextStyle(
+                        color: _text,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: color.withValues(alpha: 0.24)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            healthy ? 'HEALTHY' : warning ? 'WARNING' : 'ATTENTION',
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 6),
                 Text(
-                  room.maintenanceColor == 'green'
-                      ? 'All reported checks are clear.'
-                      : room.maintenanceColor == 'yellow'
-                          ? 'The room has 1–3 active minor problems.'
-                          : 'The room has many problems or a high/critical problem.',
-                  style: TextStyle(color: _sub),
+                  statusText,
+                  style: TextStyle(color: _sub, fontSize: 12.7, height: 1.35),
                 ),
               ],
             ),
@@ -403,7 +744,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           _metric(
             'Approve',
             room.awaitingTeacherApprovalCount,
-            const Color(0xFF4F8EF7),
+            _accentB,
           ),
         ],
       ),
@@ -414,19 +755,32 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Container(
       width: 88,
       margin: const EdgeInsets.only(left: 10),
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 11),
       decoration: BoxDecoration(
-        color: _field,
+        color: _field.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Column(
         children: [
           Text(
             '$value',
-            style: TextStyle(color: color, fontSize: 21, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: color,
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
           ),
-          Text(label, style: TextStyle(color: _sub, fontSize: 11)),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: _sub,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -434,35 +788,84 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Widget _pcTile(LabWorkstation pc) {
     final color = _conditionColor(pc.maintenanceColor);
-    return InkWell(
-      borderRadius: BorderRadius.circular(15),
-      onTap: () => _showPcDetails(pc),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: color.withValues(alpha: 0.75), width: 2),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.computer_rounded, color: color, size: 27),
-            const SizedBox(height: 5),
-            Text(
-              pc.pcId,
-              style: TextStyle(color: _text, fontWeight: FontWeight.w700),
+    final connectionColor = pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _showPcDetails(pc),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                color.withValues(alpha: _dark ? 0.075 : 0.045),
+                _field.withValues(alpha: 0.82),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const SizedBox(height: 3),
-            Text(
-              pc.isOnline ? 'ONLINE' : 'OFFLINE',
-              style: TextStyle(
-                color: pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.48), width: 1.2),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(Icons.computer_rounded, color: color, size: 24),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  pc.pcId,
+                  style: TextStyle(
+                    color: _text,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: connectionColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: connectionColor.withValues(alpha: 0.20)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: connectionColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        pc.isOnline ? 'ONLINE' : 'OFFLINE',
+                        style: TextStyle(
+                          color: connectionColor,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -471,68 +874,134 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Widget _reportCard(FaultReport report) {
     final busy = _busyReports.contains(report.id);
     final severityColor = _severityColor(report.severity);
+    final workflow = _workflowLabel(report.workflowStatus);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: _card,
-        borderRadius: BorderRadius.circular(16),
+        color: _field.withValues(alpha: _dark ? 0.74 : 0.84),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(color: _border),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(Icons.report_rounded, color: severityColor),
-          const SizedBox(width: 12),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: severityColor.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: severityColor.withValues(alpha: 0.20)),
+            ),
+            child: Icon(Icons.report_rounded, color: severityColor, size: 21),
+          ),
+          const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '${report.pcId} · ${report.issue}',
-                  style: TextStyle(color: _text, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: _text,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 4),
-                Text(report.details, style: TextStyle(color: _sub)),
-                const SizedBox(height: 6),
                 Text(
-                  '${report.severity.toUpperCase()} · ${_workflowLabel(report.workflowStatus)}',
-                  style: TextStyle(
-                    color: severityColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  report.details,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: _sub, fontSize: 12, height: 1.35),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 5,
+                  children: [
+                    _statusChip(report.severity.toUpperCase(), severityColor),
+                    _statusChip(workflow, _accentB),
+                  ],
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 14),
           if (busy)
-            const Padding(
-              padding: EdgeInsets.all(10),
-              child: CircularProgressIndicator(strokeWidth: 2),
+            SizedBox(
+              width: 34,
+              height: 34,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.2,
+                color: _accentA,
+              ),
             )
           else if (report.workflowStatus == 'reported' ||
               report.workflowStatus == 'reopened')
-            OutlinedButton.icon(
+            _outlineAction(
+              label: 'Send to ITSO',
+              icon: Icons.send_rounded,
               onPressed: () => _showForwardDialog(report),
-              icon: const Icon(Icons.send_rounded),
-              label: const Text('Send to ITSO'),
             )
           else if (report.workflowStatus == 'awaiting_teacher_approval')
-            Wrap(
-              spacing: 8,
-              children: [
-                OutlinedButton(
-                  onPressed: () => _showVerifyDialog(report, false),
-                  child: const Text('Still Damaged'),
-                ),
-                FilledButton(
-                  onPressed: () => _showVerifyDialog(report, true),
-                  child: const Text('PC is OK'),
-                ),
-              ],
-            ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  _outlineAction(
+                    label: 'Still Damaged',
+                    icon: Icons.close_rounded,
+                    onPressed: () => _showVerifyDialog(report, false),
+                  ),
+                  _gradientButton(
+                    label: 'PC is OK',
+                    icon: Icons.check_rounded,
+                    onPressed: () => _showVerifyDialog(report, true),
+                  ),
+                ],
+              ),
         ],
+      ),
+    );
+  }
+
+  Widget _statusChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 9.7,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.35,
+        ),
+      ),
+    );
+  }
+
+  Widget _outlineAction({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _accentB,
+        side: BorderSide(color: _accentB.withValues(alpha: 0.42)),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -618,15 +1087,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         decoration: const InputDecoration(labelText: 'PC'),
                         items: room.workstations
                             .map((pc) => DropdownMenuItem(
-                                  value: pc.workstationId,
-                                  child: Text(pc.pcId),
-                                ))
+                          value: pc.workstationId,
+                          child: Text(pc.pcId),
+                        ))
                             .toList(),
                         onChanged: saving
                             ? null
                             : (value) => setDialogState(
-                                  () => workstationId = value ?? workstationId,
-                                ),
+                              () => workstationId = value ?? workstationId,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
@@ -639,30 +1108,30 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         items: _teacherProblemOptions
                             .map(
                               (problem) => DropdownMenuItem<String>(
-                                value: problem.label,
-                                child: Row(
-                                  children: [
-                                    Icon(problem.icon, size: 19),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        problem.label,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
+                            value: problem.label,
+                            child: Row(
+                              children: [
+                                Icon(problem.icon, size: 19),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    problem.label,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                            )
+                              ],
+                            ),
+                          ),
+                        )
                             .toList(),
                         onChanged: saving
                             ? null
                             : (value) {
-                                setDialogState(() {
-                                  selectedProblem = value;
-                                  severity = _severityForProblem(value);
-                                });
-                              },
+                          setDialogState(() {
+                            selectedProblem = value;
+                            severity = _severityForProblem(value);
+                          });
+                        },
                         validator: (value) => value == null
                             ? 'Select the workstation problem.'
                             : null,
@@ -682,7 +1151,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Severity',
                           helperText:
-                              'Severity is assigned automatically from the problem.',
+                          'Severity is assigned automatically from the problem.',
                         ),
                         child: Row(
                           children: [
@@ -833,9 +1302,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         title: Text(pc.pcId),
         content: Text(
           'Connection: ${pc.connectionStatus.toUpperCase()}\n'
-          'Device status: ${pc.deviceStatus}\n'
-          'Active problems: ${pc.activeProblemCount}\n'
-          'Major problems: ${pc.majorProblemCount}',
+              'Device status: ${pc.deviceStatus}\n'
+              'Active problems: ${pc.activeProblemCount}\n'
+              'Major problems: ${pc.majorProblemCount}',
         ),
         actions: [
           TextButton(
@@ -849,38 +1318,146 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Widget _emptyReports() {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
       decoration: BoxDecoration(
-        color: _card,
-        borderRadius: BorderRadius.circular(16),
+        color: _field.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(color: _border),
       ),
-      child: Center(
-        child: Text('No open reports in this room.', style: TextStyle(color: _sub)),
-      ),
-    );
-  }
-
-  Widget _errorState(String message) {
-    return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.error_outline_rounded, size: 52),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: const Color(0xFF22A06B).withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_circle_outline_rounded,
+              color: Color(0xFF22A06B),
+              size: 26,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'No open reports',
+            style: TextStyle(
+              color: _text,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'This laboratory currently has no unresolved teacher reports.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _sub, fontSize: 11.8),
           ),
         ],
       ),
     );
   }
 
+  Widget _errorState(String message) {
+    return Center(
+      child: Container(
+        width: 430,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _errorColor.withValues(alpha: 0.25)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: _dark ? 0.14 : 0.04),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: _errorColor.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.error_outline_rounded, size: 30, color: _errorColor),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Unable to load dashboard',
+              style: TextStyle(
+                color: _text,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _sub, fontSize: 12.5, height: 1.4),
+            ),
+            const SizedBox(height: 18),
+            _gradientButton(
+              label: 'Retry',
+              icon: Icons.refresh_rounded,
+              onPressed: _refresh,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _message(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: _accentGradient,
+                ),
+                child: const Icon(
+                  Icons.info_outline_rounded,
+                  size: 17,
+                  color: Color(0xFF080A0E),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: _text,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: _card,
+          behavior: SnackBarBehavior.floating,
+          elevation: 0,
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: _accentA.withValues(alpha: 0.35)),
+          ),
+        ),
+      );
   }
 }
