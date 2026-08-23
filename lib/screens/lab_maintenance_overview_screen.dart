@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:flutter/gestures.dart';
+
 import '../models/fault_report.dart';
 import '../models/lab_overview.dart';
 import '../models/maintenance_record.dart';
@@ -23,19 +25,39 @@ class _LabMaintenanceOverviewScreenState
   Future<_LabDashboardData>? _future;
   Timer? _timer;
   String? _selectedRoomName;
+  late final ScrollController _horizontalScrollController;
 
-  bool get _dark => Theme.of(context).brightness == Brightness.dark;
-  Color get _card => _dark ? const Color(0xFF13141A) : Colors.white;
-  Color get _field =>
-      _dark ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _text => _dark ? Colors.white : const Color(0xFF1A1C1E);
-  Color get _sub => _dark ? Colors.white54 : Colors.black54;
-  Color get _border =>
-      _dark ? Colors.white.withValues(alpha: 0.08) : Colors.black12;
+  // ── Palette (matches the rest of the app) ───────────────────────────────
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+
+  Color get _bgColor =>
+      _isDarkMode ? const Color(0xFF090A0E) : const Color(0xFFF0F2F5);
+  Color get _cardColor =>
+      _isDarkMode ? const Color(0xFF13141A) : Colors.white;
+  Color get _fieldColor =>
+      _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
+  Color get _accentA => const Color(0xFF2EE6C5);
+  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _textColor =>
+      _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
+  Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
+  Color get _borderColor => _isDarkMode
+      ? Colors.white.withValues(alpha: 0.07)
+      : Colors.black.withValues(alpha: 0.09);
+  Color get _errorColor => const Color(0xFFFF6B6B);
+  Color get _warnColor => const Color(0xFFF9A825);
+  Color get _okColor => const Color(0xFF22A06B);
+
+  LinearGradient get _accentGradient => LinearGradient(
+    colors: [_accentA, _accentB],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
 
   @override
   void initState() {
     super.initState();
+    _horizontalScrollController = ScrollController();
     _refresh();
     _timer = Timer.periodic(const Duration(seconds: 20), (_) => _refresh());
   }
@@ -43,6 +65,7 @@ class _LabMaintenanceOverviewScreenState
   @override
   void dispose() {
     _timer?.cancel();
+    _horizontalScrollController.dispose();
     super.dispose();
   }
 
@@ -54,7 +77,7 @@ class _LabMaintenanceOverviewScreenState
         StaffService.instance.listFaultReports(),
         StaffService.instance.listMaintenanceHistory(),
       ]).then(
-        (values) => _LabDashboardData(
+            (values) => _LabDashboardData(
           rooms: values[0] as List<LabOverview>,
           reports: values[1] as List<FaultReport>,
           maintenanceHistory: values[2] as List<MaintenanceRecord>,
@@ -64,107 +87,149 @@ class _LabMaintenanceOverviewScreenState
   }
 
   Color _conditionColor(String value) {
-    if (value == 'red') return const Color(0xFFE53935);
-    if (value == 'yellow') return const Color(0xFFF9A825);
-    return const Color(0xFF22A06B);
+    if (value == 'red') return _errorColor;
+    if (value == 'yellow') return _warnColor;
+    return _okColor;
   }
 
+  Color _severityColor(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'critical':
+      case 'emergency':
+      case 'high':
+        return _errorColor;
+      case 'medium':
+        return _warnColor;
+      default:
+        return _accentB;
+    }
+  }
+
+  // ── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<_LabDashboardData>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return MessageState(
-            icon: Icons.wifi_off_rounded,
-            title: 'Could not load laboratory maintenance',
-            message: cleanError(snapshot.error!),
-            onRetry: _refresh,
+    return ColoredBox(
+      color: _bgColor,
+      child: FutureBuilder<_LabDashboardData>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(
+              child: CircularProgressIndicator(color: _accentA, strokeWidth: 2.5),
+            );
+          }
+          if (snapshot.hasError) {
+            return MessageState(
+              icon: Icons.wifi_off_rounded,
+              title: 'Could not load laboratory maintenance',
+              message: cleanError(snapshot.error!),
+              onRetry: _refresh,
+            );
+          }
+          final data = snapshot.data;
+          final rooms = data?.rooms ?? const <LabOverview>[];
+          if (rooms.isEmpty) {
+            return MessageState(
+              icon: Icons.meeting_room_outlined,
+              title: 'No active laboratory rooms',
+              message: 'Create and activate a room before viewing maintenance.',
+              onRetry: _refresh,
+            );
+          }
+          final selectedName = _selectedRoomName ?? rooms.first.roomName;
+          final selected = rooms.firstWhere(
+                (room) => room.roomName == selectedName,
+            orElse: () => rooms.first,
           );
-        }
-        final data = snapshot.data;
-        final rooms = data?.rooms ?? const <LabOverview>[];
-        if (rooms.isEmpty) {
-          return MessageState(
-            icon: Icons.meeting_room_outlined,
-            title: 'No active laboratory rooms',
-            message: 'Create and activate a room before viewing maintenance.',
-            onRetry: _refresh,
-          );
-        }
-        final selectedName = _selectedRoomName ?? rooms.first.roomName;
-        final selected = rooms.firstWhere(
-          (room) => room.roomName == selectedName,
-          orElse: () => rooms.first,
-        );
-        final reports = (data?.reports ?? const <FaultReport>[])
-            .where((report) => report.roomName == selected.roomName)
-            .toList();
-        final maintenanceHistory =
-            (data?.maintenanceHistory ?? const <MaintenanceRecord>[])
-                .where((record) => record.roomName == selected.roomName)
-                .toList();
-        return _content(rooms, selected, reports, maintenanceHistory);
-      },
+          final reports = (data?.reports ?? const <FaultReport>[])
+              .where((report) => report.roomName == selected.roomName)
+              .toList();
+          final maintenanceHistory =
+          (data?.maintenanceHistory ?? const <MaintenanceRecord>[])
+              .where((record) => record.roomName == selected.roomName)
+              .toList();
+          return _content(rooms, selected, reports, maintenanceHistory);
+        },
+      ),
     );
   }
 
   Widget _content(
-    List<LabOverview> rooms,
-    LabOverview selected,
-    List<FaultReport> reports,
-    List<MaintenanceRecord> maintenanceHistory,
-  ) {
+      List<LabOverview> rooms,
+      LabOverview selected,
+      List<FaultReport> reports,
+      List<MaintenanceRecord> maintenanceHistory,
+      ) {
     return RefreshIndicator(
+      color: _accentA,
+      backgroundColor: _cardColor,
       onRefresh: () async => _refresh(),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Maintenance is summarized per laboratory. Select a room to '
-                  'view its PC map, online/offline counts, and active problems.',
-                  style: TextStyle(color: _sub),
+          _buildToolbarRow(),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 180, // Increased slightly to accommodate scrollbar
+            child: Listener(
+              onPointerSignal: (pointerSignal) {
+                if (pointerSignal is PointerScrollEvent) {
+                  GestureBinding.instance.pointerSignalResolver
+                      .register(pointerSignal, (event) {
+                    if (event is PointerScrollEvent) {
+                      final newOffset = _horizontalScrollController.offset +
+                          event.scrollDelta.dy;
+                      if (newOffset < 0) {
+                        _horizontalScrollController.jumpTo(0);
+                      } else if (newOffset >
+                          _horizontalScrollController.position
+                              .maxScrollExtent) {
+                        _horizontalScrollController.jumpTo(
+                            _horizontalScrollController
+                                .position.maxScrollExtent);
+                      } else {
+                        _horizontalScrollController.jumpTo(newOffset);
+                      }
+                    }
+                  });
+                }
+              },
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                  },
                 ),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => Scaffold(
-                      appBar: AppBar(title: Text('PC Checklist Records')),
-                      body: const SafeArea(child: PreventiveMaintenanceScreen()),
-                    ),
+                child: Scrollbar(
+                  controller: _horizontalScrollController,
+                  thumbVisibility: false, // Only show when scrolling
+                  trackVisibility: false,
+                  thickness: 5,
+                  radius: const Radius.circular(10),
+                  notificationPredicate: (notification) =>
+                  notification.depth == 0,
+                  child: ListView.separated(
+                    controller: _horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(bottom: 12),
+                    // Space for the scrollbar
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: rooms.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      final room = rooms[index];
+                      return _roomCard(room, room.roomName == selected.roomName);
+                    },
                   ),
                 ),
-                icon: const Icon(Icons.fact_check_rounded),
-                label: const Text('PC Checklist Records'),
               ),
-              const SizedBox(width: 8),
-              IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 164,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: rooms.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final room = rooms[index];
-                return _roomCard(room, room.roomName == selected.roomName);
-              },
             ),
           ),
           const SizedBox(height: 18),
           _selectedRoomHeader(selected),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               final columns = constraints.maxWidth >= 1050 ? 8 : 6;
@@ -212,20 +277,125 @@ class _LabMaintenanceOverviewScreenState
     );
   }
 
+  Widget _buildToolbarRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Text(
+            'Maintenance is summarized per laboratory. Select a room to '
+                'view its PC map, online/offline counts, and active problems.',
+            style: TextStyle(color: _subTextColor, fontSize: 12.5, height: 1.4),
+          ),
+        ),
+        const SizedBox(width: 12),
+        _outlinedButton(
+          label: 'PC Checklist Records',
+          icon: Icons.fact_check_rounded,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => Scaffold(
+                backgroundColor: _bgColor,
+                appBar: AppBar(
+                  title: const Text('PC Checklist Records'),
+                  backgroundColor: _cardColor,
+                  foregroundColor: _textColor,
+                  surfaceTintColor: Colors.transparent,
+                ),
+                body: const SafeArea(child: PreventiveMaintenanceScreen()),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _iconTile(icon: Icons.refresh_rounded, tooltip: 'Refresh', onPressed: _refresh),
+      ],
+    );
+  }
+
+  Widget _outlinedButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _accentB.withValues(alpha: 0.5)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: _accentB),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: _accentB,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconTile({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: 46,
+        height: 46,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: _fieldColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _borderColor),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onPressed,
+              child: Icon(icon, color: _subTextColor, size: 20),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _roomCard(LabOverview room, bool selected) {
     final color = _conditionColor(room.maintenanceColor);
     return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: () => setState(() => _selectedRoomName = room.roomName),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         width: 260,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: _card,
+          color: selected ? color.withValues(alpha: _isDarkMode ? 0.1 : 0.07) : _cardColor,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: selected ? color : color.withValues(alpha: 0.5),
-            width: selected ? 3 : 1.5,
+            color: selected ? color.withValues(alpha: 0.7) : _borderColor,
+            width: selected ? 1.6 : 1,
           ),
         ),
         child: Column(
@@ -233,21 +403,29 @@ class _LabMaintenanceOverviewScreenState
           children: [
             Row(
               children: [
-                Icon(Icons.meeting_room_rounded, color: color),
-                const SizedBox(width: 8),
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.meeting_room_rounded, color: color, size: 16),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Lab ${room.roomName}',
                     style: TextStyle(
-                      color: _text,
-                      fontSize: 17,
+                      color: _textColor,
+                      fontSize: 16.5,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
                 Container(
-                  width: 14,
-                  height: 14,
+                  width: 12,
+                  height: 12,
                   decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                 ),
               ],
@@ -255,19 +433,19 @@ class _LabMaintenanceOverviewScreenState
             const Spacer(),
             Text(
               '${room.onlinePcCount} online · ${room.offlinePcCount} offline',
-              style: TextStyle(color: _sub),
+              style: TextStyle(color: _subTextColor, fontSize: 12.5),
             ),
             const SizedBox(height: 4),
             Text(
               '${room.activeProblemCount} active problem(s)',
-              style: TextStyle(color: color, fontWeight: FontWeight.w700),
+              style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13),
             ),
             const SizedBox(height: 4),
             Text(
               room.teacherDisplayName == null
                   ? 'No Teacher account assigned'
                   : 'Teacher: ${room.teacherDisplayName}',
-              style: TextStyle(color: _sub, fontSize: 11.5),
+              style: TextStyle(color: _subTextColor, fontSize: 11.5),
             ),
           ],
         ),
@@ -280,9 +458,16 @@ class _LabMaintenanceOverviewScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _field,
-        borderRadius: BorderRadius.circular(16),
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: color.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDarkMode ? 0.4 : 0.05),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,42 +477,40 @@ class _LabMaintenanceOverviewScreenState
               Expanded(
                 child: Text(
                   'LAB ${room.roomName} MAP',
-                  style: TextStyle(color: _text, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    color: _textColor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: color.withValues(alpha: _isDarkMode ? 0.16 : 0.12),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: color.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   room.maintenanceColor.toUpperCase(),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              _badge('Online ${room.onlinePcCount}', const Color(0xFF22A06B)),
+              _badge('Online ${room.onlinePcCount}', _okColor),
               _badge('Offline ${room.offlinePcCount}', Colors.blueGrey),
-              _badge('Healthy ${room.healthyPcCount}', const Color(0xFF22A06B)),
-              _badge('Warning ${room.warningPcCount}', const Color(0xFFF9A825)),
-              _badge('Damaged ${room.damagedPcCount}', const Color(0xFFE53935)),
+              _badge('Healthy ${room.healthyPcCount}', _okColor),
+              _badge('Warning ${room.warningPcCount}', _warnColor),
+              _badge('Damaged ${room.damagedPcCount}', _errorColor),
               _badge('Problems ${room.activeProblemCount}', color),
-              _badge(
-                'Awaiting Teacher ${room.awaitingTeacherApprovalCount}',
-                const Color(0xFF4F8EF7),
-              ),
+              _badge('Awaiting Teacher ${room.awaitingTeacherApprovalCount}', _accentB),
             ],
           ),
         ],
@@ -339,8 +522,9 @@ class _LabMaintenanceOverviewScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withValues(alpha: _isDarkMode ? 0.16 : 0.1),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Text(
         label,
@@ -354,21 +538,24 @@ class _LabMaintenanceOverviewScreenState
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: _card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.75), width: 2),
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withValues(alpha: 0.7), width: 1.6),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.computer_rounded, color: color, size: 27),
+          Icon(Icons.computer_rounded, color: color, size: 26),
           const SizedBox(height: 5),
-          Text(pc.pcId, style: TextStyle(color: _text, fontWeight: FontWeight.w700)),
+          Text(
+            pc.pcId,
+            style: TextStyle(color: _textColor, fontWeight: FontWeight.w700, fontSize: 13),
+          ),
           const SizedBox(height: 3),
           Text(
             pc.isOnline ? 'ONLINE' : 'OFFLINE',
             style: TextStyle(
-              color: pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey,
+              color: pc.isOnline ? _okColor : Colors.blueGrey,
               fontSize: 10,
               fontWeight: FontWeight.w700,
             ),
@@ -401,10 +588,10 @@ class _LabMaintenanceOverviewScreenState
           icon: report.repaired
               ? Icons.check_circle_outline_rounded
               : Icons.warning_amber_rounded,
-          color: report.repaired ? const Color(0xFF22A06B) : color,
+          color: report.repaired ? _okColor : color,
           title: '${report.pcId} · ${report.issue}',
           subtitle:
-              '${report.severity.toUpperCase()} · '
+          '${report.severity.toUpperCase()} · '
               '${report.workflowStatus.replaceAll('_', ' ').toUpperCase()}',
         );
       }).toList(),
@@ -414,10 +601,8 @@ class _LabMaintenanceOverviewScreenState
   Widget _maintenanceHistoryPanel(List<MaintenanceRecord> records) {
     final ordered = records.toList()
       ..sort((a, b) {
-        final aTime =
-            a.maintenanceDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bTime =
-            b.maintenanceDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final aTime = a.maintenanceDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = b.maintenanceDate ?? DateTime.fromMillisecondsSinceEpoch(0);
         return bTime.compareTo(aTime);
       });
     return _detailPanel(
@@ -426,16 +611,16 @@ class _LabMaintenanceOverviewScreenState
       emptyMessage: 'No maintenance records exist for this laboratory.',
       children: ordered.take(8).map((record) {
         final color = record.overallCondition == 'critical'
-            ? const Color(0xFFE53935)
+            ? _errorColor
             : record.overallCondition == 'needs_attention'
-                ? const Color(0xFFF9A825)
-                : const Color(0xFF22A06B);
+            ? _warnColor
+            : _okColor;
         return _detailRow(
           icon: Icons.home_repair_service_outlined,
           color: color,
           title: '${record.pcId} · ${record.technicianName}',
           subtitle:
-              '${record.overallCondition.replaceAll('_', ' ').toUpperCase()} · '
+          '${record.overallCondition.replaceAll('_', ' ').toUpperCase()} · '
               '${formatDateTime(record.maintenanceDate)}',
         );
       }).toList(),
@@ -451,26 +636,53 @@ class _LabMaintenanceOverviewScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _border),
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDarkMode ? 0.4 : 0.05),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: const Color(0xFF4F8EF7)),
-              const SizedBox(width: 8),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [_accentA.withValues(alpha: 0.15), _accentB.withValues(alpha: 0.12)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(color: _accentA.withValues(alpha: 0.35), width: 1.1),
+                ),
+                child: ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: [_accentA, _accentB],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ).createShader(bounds),
+                  child: Icon(icon, size: 16, color: Colors.white),
+                ),
+              ),
+              const SizedBox(width: 10),
               Text(
                 title,
-                style: TextStyle(color: _text, fontWeight: FontWeight.w800),
+                style: TextStyle(color: _textColor, fontWeight: FontWeight.w800, fontSize: 14.5),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           if (children.isEmpty)
-            Text(emptyMessage, style: TextStyle(color: _sub))
+            Text(emptyMessage, style: TextStyle(color: _subTextColor, fontSize: 13))
           else
             ...children,
         ],
@@ -485,41 +697,36 @@ class _LabMaintenanceOverviewScreenState
     required String subtitle,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 19),
-          const SizedBox(width: 9),
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: TextStyle(color: _text, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: _textColor, fontWeight: FontWeight.w600, fontSize: 13.5),
                 ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: TextStyle(color: _sub, fontSize: 11.5)),
+                Text(subtitle, style: TextStyle(color: _subTextColor, fontSize: 11.5)),
               ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  Color _severityColor(String value) {
-    switch (value.trim().toLowerCase()) {
-      case 'critical':
-      case 'emergency':
-      case 'high':
-        return const Color(0xFFE53935);
-      case 'medium':
-        return const Color(0xFFF9A825);
-      default:
-        return const Color(0xFF4F8EF7);
-    }
   }
 }
 
