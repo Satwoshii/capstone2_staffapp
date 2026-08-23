@@ -1,5 +1,5 @@
-#define MyAppName "Syswatch Admin"
-#define MyAppVersion "2.8.5"
+#define MyAppName "SysWatch Admin"
+#define MyAppVersion "2.7.2"
 #define MyAppPublisher "NU Clark"
 #define MyAppExeName "itsoadminappcapstone.exe"
 #define VCRedistFile "VC_redist.x64.exe"
