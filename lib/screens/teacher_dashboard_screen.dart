@@ -127,15 +127,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Color get _sub => _dark ? Colors.white54 : Colors.black54;
   Color get _border =>
       _dark ? Colors.white.withValues(alpha: 0.08) : Colors.black12;
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground => _dark ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _dark ? Colors.white : _accentB;
   Color get _errorColor => const Color(0xFFFF6B6B);
-
-  LinearGradient get _accentGradient => LinearGradient(
-    colors: [_accentA, _accentB],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
-  );
+  Color get _accentColor => _dark ? _accentA : _accentB;
 
   @override
   void initState() {
@@ -211,7 +208,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           ),
                           padding: const EdgeInsets.all(16),
                           child: CircularProgressIndicator(
-                            color: _accentA,
+                            color: _accentAForeground,
                             strokeWidth: 2.4,
                           ),
                         ),
@@ -252,7 +249,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    _accentB.withValues(alpha: _dark ? 0.10 : 0.07),
+                    _accentB.withValues(alpha: _dark ? 0.15 : 0.12),
                     Colors.transparent,
                   ],
                 ),
@@ -269,7 +266,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    _accentA.withValues(alpha: _dark ? 0.08 : 0.06),
+                    _accentA.withValues(alpha: _dark ? 0.12 : 0.10),
                     Colors.transparent,
                   ],
                 ),
@@ -298,37 +295,23 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              gradient: LinearGradient(
-                colors: [
-                  _accentA.withValues(alpha: 0.18),
-                  _accentB.withValues(alpha: 0.14),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: _accentColor.withValues(alpha: 0.14),
+                border: Border.all(
+                  color: _accentColor.withValues(alpha: 0.38),
+                  width: 1.2,
+                ),
               ),
-              border: Border.all(
-                color: _accentA.withValues(alpha: 0.38),
-                width: 1.2,
-              ),
-            ),
-            child: ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [_accentA, _accentB],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ).createShader(bounds),
-              child: const Icon(
+              child: Icon(
                 Icons.school_rounded,
-                color: Colors.white,
+                color: _accentAForeground,
                 size: 24,
               ),
             ),
-          ),
           const SizedBox(width: 13),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,7 +350,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     color: _accentA.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.person_rounded, color: _accentA, size: 15),
+                  child: Icon(Icons.person_rounded, color: _accentAForeground, size: 15),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -443,8 +426,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     final disabled = onPressed == null;
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: disabled ? null : _accentGradient,
-        color: disabled ? _field : null,
+        color: disabled ? _field : _accentColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Material(
@@ -460,13 +442,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 Icon(
                   icon,
                   size: 17,
-                  color: disabled ? _sub : const Color(0xFF080A0E),
+                  color: disabled ? _sub : (_dark ? Colors.black : Colors.white),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   label,
                   style: TextStyle(
-                    color: disabled ? _sub : const Color(0xFF080A0E),
+                    color: disabled ? _sub : (_dark ? Colors.black : Colors.white),
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),
@@ -493,7 +475,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     final color = _conditionColor(room.maintenanceColor);
 
     return RefreshIndicator(
-      color: _accentA,
+      color: _accentAForeground,
       onRefresh: () async => _refresh(),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 86),
@@ -597,18 +579,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      _accentA.withValues(alpha: 0.16),
-                      _accentB.withValues(alpha: 0.12),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: _accentColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _accentA.withValues(alpha: 0.22)),
+                  border: Border.all(color: _accentColor.withValues(alpha: 0.22)),
                 ),
-                child: Icon(icon, color: _accentA, size: 19),
+                child: Icon(icon, color: _accentAForeground, size: 19),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -653,15 +628,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            color.withValues(alpha: _dark ? 0.16 : 0.09),
-            _card.withValues(alpha: 0.96),
-            _accentB.withValues(alpha: _dark ? 0.035 : 0.025),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: color.withValues(alpha: _dark ? 0.08 : 0.04),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: color.withValues(alpha: 0.48), width: 1.4),
         boxShadow: [
@@ -744,7 +711,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           _metric(
             'Approve',
             room.awaitingTeacherApprovalCount,
-            _accentB,
+            _accentBForeground,
           ),
         ],
       ),
@@ -797,14 +764,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         onTap: () => _showPcDetails(pc),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                color.withValues(alpha: _dark ? 0.075 : 0.045),
-                _field.withValues(alpha: 0.82),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: pc.isOnline 
+                ? _accentColor.withValues(alpha: _dark ? 0.08 : 0.04)
+                : _field.withValues(alpha: 0.82),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: color.withValues(alpha: 0.48), width: 1.2),
           ),
@@ -923,7 +885,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   runSpacing: 5,
                   children: [
                     _statusChip(report.severity.toUpperCase(), severityColor),
-                    _statusChip(workflow, _accentB),
+                    _statusChip(workflow, _accentBForeground),
                   ],
                 ),
               ],
@@ -936,7 +898,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               height: 34,
               child: CircularProgressIndicator(
                 strokeWidth: 2.2,
-                color: _accentA,
+                color: _accentAForeground,
               ),
             )
           else if (report.workflowStatus == 'reported' ||
@@ -997,8 +959,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       icon: Icon(icon, size: 16),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: _accentB,
-        side: BorderSide(color: _accentB.withValues(alpha: 0.42)),
+        foregroundColor: _accentBForeground,
+        side: BorderSide(color: _accentBForeground.withValues(alpha: 0.42)),
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
@@ -1049,18 +1011,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           width: 34,
           height: 34,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                _accentA.withValues(alpha: 0.16),
-                _accentB.withValues(alpha: 0.12),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: _accentColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(11),
-            border: Border.all(color: _accentA.withValues(alpha: 0.24)),
+            border: Border.all(color: _accentAForeground.withValues(alpha: 0.24)),
           ),
-          child: Icon(icon, color: _accentA, size: 18),
+          child: Icon(icon, color: _accentAForeground, size: 18),
         ),
         const SizedBox(width: 11),
         Expanded(
@@ -1143,8 +1098,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           onTap: onPressed,
           child: Ink(
             decoration: BoxDecoration(
-              gradient: disabled ? null : _accentGradient,
-              color: disabled ? _field : null,
+              color: disabled ? _field : _accentColor,
               borderRadius: BorderRadius.circular(12),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
@@ -1158,7 +1112,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        disabled ? _sub : const Color(0xFF080A0E),
+                        disabled ? _sub : (_dark ? Colors.black : Colors.white),
                       ),
                     ),
                   ),
@@ -1167,7 +1121,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: disabled ? _sub : const Color(0xFF080A0E),
+                    color: disabled ? _sub : (_dark ? Colors.black : Colors.white),
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),
@@ -1233,7 +1187,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       DropdownButtonFormField<String>(
                         value: workstationId,
                         dropdownColor: _card,
-                        iconEnabledColor: _accentA,
+                        iconEnabledColor: _accentAForeground,
                         style: TextStyle(color: _text, fontSize: 14),
                         decoration: _dialogFieldDecoration(label: 'PC'),
                         items: room.workstations
@@ -1253,7 +1207,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         value: selectedProblem,
                         isExpanded: true,
                         dropdownColor: _card,
-                        iconEnabledColor: _accentA,
+                        iconEnabledColor: _accentAForeground,
                         style: TextStyle(color: _text, fontSize: 14),
                         decoration: _dialogFieldDecoration(
                           label: 'Problem',
@@ -1265,7 +1219,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                             value: problem.label,
                             child: Row(
                               children: [
-                                Icon(problem.icon, size: 18, color: _accentA),
+                                Icon(problem.icon, size: 18, color: _accentAForeground),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
@@ -1295,7 +1249,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         enabled: !saving,
                         maxLines: 4,
                         style: TextStyle(color: _text, fontSize: 14),
-                        cursorColor: _accentA,
+                        cursorColor: _accentAForeground,
                         decoration: _dialogFieldDecoration(label: 'Details'),
                         onChanged: (value) => details = value,
                         validator: (value) => (value ?? '').trim().isEmpty
@@ -1433,7 +1387,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   enabled: !saving,
                   maxLines: 4,
                   style: TextStyle(color: _text, fontSize: 14),
-                  cursorColor: _accentA,
+                  cursorColor: _accentAForeground,
                   decoration: _dialogFieldDecoration(label: label),
                   onChanged: (value) => notes = value,
                   validator: (value) => (value ?? '').trim().isEmpty
@@ -1469,10 +1423,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: (valueColor ?? _accentA).withValues(alpha: 0.10),
+                color: (valueColor ?? _accentAForeground).withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(9),
               ),
-              child: Icon(icon, size: 16, color: valueColor ?? _accentA),
+              child: Icon(icon, size: 16, color: valueColor ?? _accentAForeground),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1673,12 +1627,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 height: 30,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: _accentGradient,
+                  color: _accentColor,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.info_outline_rounded,
                   size: 17,
-                  color: Color(0xFF080A0E),
+                  color: _dark ? Colors.black : Colors.white,
                 ),
               ),
               const SizedBox(width: 12),

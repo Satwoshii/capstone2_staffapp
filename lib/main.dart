@@ -34,7 +34,7 @@ class StaffAdminApp extends StatelessWidget {
           themeMode: ThemeService.instance.themeMode,
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF155EEF),
+              seedColor: const Color(0xFFC0C0C0),
               brightness: Brightness.light,
             ),
             useMaterial3: true,
@@ -43,13 +43,16 @@ class StaffAdminApp extends StatelessWidget {
             ),
             filledButtonTheme: FilledButtonThemeData(
               style: FilledButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ),
           darkTheme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF155EEF),
+              seedColor: const Color(0xFFC0C0C0),
               brightness: Brightness.dark,
             ),
             useMaterial3: true,
@@ -58,7 +61,10 @@ class StaffAdminApp extends StatelessWidget {
             ),
             filledButtonTheme: FilledButtonThemeData(
               style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFC0C0C0),
+                foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ),

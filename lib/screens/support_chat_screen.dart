@@ -50,8 +50,11 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
@@ -59,12 +62,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       ? Colors.white.withValues(alpha: 0.07)
       : Colors.black.withValues(alpha: 0.09);
   Color get _errorColor => const Color(0xFFFF6B6B);
-
-  LinearGradient get _accentGradient => LinearGradient(
-    colors: [_accentA, _accentB],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
-  );
+  Color get _accentColor => _isDarkMode ? _accentA : _accentB;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
   @override
@@ -239,7 +237,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               minLines: 3,
               maxLines: 6,
               style: TextStyle(color: _textColor),
-              cursorColor: _accentA,
+              cursorColor: _accentAForeground,
               decoration: _fieldDecoration('Repair action / technician notes'),
               validator: (value) => (value ?? '').trim().isEmpty
                   ? 'Enter the repair action or notes.'
@@ -252,9 +250,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               style: TextButton.styleFrom(foregroundColor: _subTextColor),
               child: const Text('Cancel'),
             ),
-            _GradientButton(
+            _PrimaryButton(
               label: 'Confirm Repair',
-              gradient: _accentGradient,
               onPressed: () {
                 if (key.currentState?.validate() ?? false) {
                   Navigator.pop(dialogContext, controller.text.trim());
@@ -378,7 +375,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                       TextField(
                         controller: _searchController,
                         style: TextStyle(color: _textColor, fontSize: 14),
-                        cursorColor: _accentA,
+                        cursorColor: _accentAForeground,
                         decoration: _fieldDecoration(
                           'Search support requests',
                           icon: Icons.search,
@@ -430,7 +427,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   padding: const EdgeInsets.symmetric(vertical: 9),
                   decoration: BoxDecoration(
-                    gradient: _statusFilter == option.$1 ? _accentGradient : null,
+                    color: _statusFilter == option.$1 ? _accentColor : null,
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: Text(
@@ -440,7 +437,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                       color: _statusFilter == option.$1
-                          ? const Color(0xFF080A0E)
+                          ? (_isDarkMode ? Colors.black : Colors.white)
                           : _subTextColor,
                     ),
                   ),
@@ -455,7 +452,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   Widget _buildConversationList() {
     if (_loadingList) {
       return Center(
-        child: CircularProgressIndicator(color: _accentA, strokeWidth: 2.5),
+        child: CircularProgressIndicator(color: _accentAForeground, strokeWidth: 2.5),
       );
     }
     if (_listError != null) {
@@ -477,7 +474,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     }
 
     return RefreshIndicator(
-      color: _accentA,
+      color: _accentAForeground,
       backgroundColor: _cardColor,
       onRefresh: _refreshConversations,
       child: ListView.builder(
@@ -552,13 +549,13 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
-                      gradient: _accentGradient,
+                      color: _accentColor,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       '${item.unreadCount}',
-                      style: const TextStyle(
-                        color: Color(0xFF080A0E),
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.black : Colors.white,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                       ),
@@ -593,7 +590,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           child: _loadingMessages
               ? Center(
             child: CircularProgressIndicator(
-                color: _accentA, strokeWidth: 2.5),
+                color: _accentAForeground, strokeWidth: 2.5),
           )
               : _messages.isEmpty
               ? Center(
@@ -609,6 +606,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                 message: _messages[index],
                 accentA: _accentA,
                 accentB: _accentB,
+                accentAForeground: _accentAForeground,
+                accentBForeground: _accentBForeground,
                 fieldColor: _fieldColor,
                 textColor: _textColor,
                 subTextColor: _subTextColor,
@@ -643,7 +642,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
             onTap: () => setState(() => _messageError = null),
             child: Text('Dismiss',
                 style: TextStyle(
-                    color: _accentB, fontSize: 13, fontWeight: FontWeight.w600)),
+                    color: _accentBForeground, fontSize: 13, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -736,17 +735,9 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               ),
               if (conversation.hasLinkedFault) ...[
                 const SizedBox(width: 10),
-                _GradientButton(
+                _PrimaryButton(
                   label: conversation.repaired ? 'Repaired' : 'Mark Repaired',
                   icon: Icons.build,
-                  gradient: conversation.repaired
-                      ? null
-                      : _accentGradient,
-                  solidColor:
-                  conversation.repaired ? _fieldColor : null,
-                  textColor: conversation.repaired
-                      ? _subTextColor
-                      : const Color(0xFF080A0E),
                   onPressed: conversation.repaired ? null : _markRepaired,
                 ),
               ],
@@ -792,7 +783,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                 maxLines: 5,
                 maxLength: 4000,
                 style: TextStyle(color: _textColor, fontSize: 14.5),
-                cursorColor: _accentA,
+                cursorColor: _accentAForeground,
                 decoration: _fieldDecoration(
                   '',
                   hintText: conversation.canReply
@@ -806,7 +797,6 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
             _SendButton(
               enabled: conversation.canReply && !_sending,
               sending: _sending,
-              gradient: _accentGradient,
               onPressed: _sendMessage,
             ),
           ],
@@ -840,15 +830,16 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                 height: 30,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: isError
-                      ? null
-                      : LinearGradient(colors: [_accentA, _accentB]),
-                  color: isError ? _errorColor.withValues(alpha: 0.15) : null,
+                  color: isError 
+                      ? _errorColor.withValues(alpha: 0.15) 
+                      : _accentColor,
                 ),
                 child: Icon(
                   isError ? Icons.error_outline : Icons.check_rounded,
                   size: 17,
-                  color: isError ? _errorColor : const Color(0xFF080A0E),
+                  color: isError 
+                      ? _errorColor 
+                      : (_isDarkMode ? Colors.black : Colors.white),
                 ),
               ),
               const SizedBox(width: 12),
@@ -953,54 +944,50 @@ class _CategoryBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [accentA.withValues(alpha: 0.15), accentB.withValues(alpha: 0.12)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: isDarkMode ? accentA.withValues(alpha: 0.12) : accentB.withValues(alpha: 0.08),
         border: Border.all(color: accentA.withValues(alpha: 0.35), width: 1.2),
       ),
-      child: ShaderMask(
-        shaderCallback: (bounds) => LinearGradient(
-          colors: [accentA, accentB],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ).createShader(bounds),
-        child: Icon(icon, color: Colors.white, size: size * 0.5),
+      child: Icon(
+        icon,
+        color: isDarkMode ? accentA : accentB,
+        size: size * 0.5,
       ),
     );
   }
 }
 
-class _GradientButton extends StatelessWidget {
+class _PrimaryButton extends StatelessWidget {
   final String label;
   final IconData? icon;
-  final Gradient? gradient;
-  final Color? solidColor;
-  final Color textColor;
   final VoidCallback? onPressed;
 
-  const _GradientButton({
+  const _PrimaryButton({
     required this.label,
     this.icon,
-    this.gradient,
-    this.solidColor,
-    this.textColor = const Color(0xFF080A0E),
     required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final disabled = onPressed == null;
+    
+    final bgColor = disabled 
+        ? const Color(0xFFEDF0F5).withValues(alpha: 0.5) 
+        : (isDarkMode ? const Color(0xFFC0C0C0) : const Color(0xFF000000));
+    final textColor = disabled
+        ? Colors.black26
+        : (isDarkMode ? Colors.black : Colors.white);
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: disabled ? null : gradient,
-        color: disabled ? (solidColor ?? Colors.grey.withValues(alpha: 0.2)) : solidColor,
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Material(
@@ -1037,29 +1024,34 @@ class _GradientButton extends StatelessWidget {
 class _SendButton extends StatelessWidget {
   final bool enabled;
   final bool sending;
-  final Gradient gradient;
   final VoidCallback onPressed;
 
   const _SendButton({
     required this.enabled,
     required this.sending,
-    required this.gradient,
     required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final color = enabled 
+        ? (isDarkMode ? const Color(0xFFC0C0C0) : const Color(0xFF000000))
+        : const Color(0xFFC0C0C0).withValues(alpha: 0.2);
+    final iconColor = enabled
+        ? (isDarkMode ? Colors.black : Colors.white)
+        : Colors.white;
+
     return Container(
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        gradient: enabled ? gradient : null,
-        color: enabled ? null : gradient.colors.first.withValues(alpha: 0.2),
+        color: color,
         shape: BoxShape.circle,
         boxShadow: enabled
             ? [
           BoxShadow(
-            color: gradient.colors.first.withValues(alpha: 0.3),
+            color: color.withValues(alpha: 0.3),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -1074,15 +1066,15 @@ class _SendButton extends StatelessWidget {
           onTap: enabled ? onPressed : null,
           child: Center(
             child: sending
-                ? const SizedBox(
+                ? SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF080A0E)),
+                valueColor: AlwaysStoppedAnimation<Color>(iconColor),
               ),
             )
-                : const Icon(Icons.send_rounded, color: Color(0xFF080A0E), size: 20),
+                : Icon(Icons.send_rounded, color: iconColor, size: 20),
           ),
         ),
       ),
@@ -1094,6 +1086,8 @@ class _AdminMessageBubble extends StatelessWidget {
   final SupportChatMessage message;
   final Color accentA;
   final Color accentB;
+  final Color accentAForeground;
+  final Color accentBForeground;
   final Color fieldColor;
   final Color textColor;
   final Color subTextColor;
@@ -1102,6 +1096,8 @@ class _AdminMessageBubble extends StatelessWidget {
     required this.message,
     required this.accentA,
     required this.accentB,
+    required this.accentAForeground,
+    required this.accentBForeground,
     required this.fieldColor,
     required this.textColor,
     required this.subTextColor,
@@ -1117,17 +1113,11 @@ class _AdminMessageBubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          gradient: isMine
-              ? LinearGradient(
-            colors: [
-              accentA.withValues(alpha: 0.18),
-              accentB.withValues(alpha: 0.14),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          )
-              : null,
-          color: isMine ? null : fieldColor,
+          color: isMine 
+              ? (Theme.of(context).brightness == Brightness.dark 
+                  ? accentA.withValues(alpha: 0.12) 
+                  : accentB.withValues(alpha: 0.08)) 
+              : fieldColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isMine ? accentA.withValues(alpha: 0.35) : Colors.transparent,
@@ -1142,7 +1132,7 @@ class _AdminMessageBubble extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 12.5,
-                color: isMine ? accentB : textColor,
+                color: isMine ? accentBForeground : textColor,
               ),
             ),
             const SizedBox(height: 4),
@@ -1163,7 +1153,7 @@ class _AdminMessageBubble extends StatelessWidget {
                   Icon(
                     message.read ? Icons.done_all : Icons.done,
                     size: 14,
-                    color: message.read ? accentA : subTextColor,
+                    color: message.read ? accentAForeground : subTextColor,
                   ),
                 ],
               ],

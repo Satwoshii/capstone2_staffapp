@@ -47,8 +47,10 @@ class _PreventiveMaintenanceScreenState
   Color get _border => _isDark
       ? Colors.white.withValues(alpha: 0.07)
       : Colors.black.withValues(alpha: 0.09);
-  Color get _teal => const Color(0xFF2EE6C5);
-  Color get _blue => const Color(0xFF4F8EF7);
+  Color get _teal => const Color(0xFFC0C0C0);
+  Color get _blue => const Color(0xFF000000);
+  Color get _accentAForeground => _isDark ? _teal : const Color(0xFF606060);
+  Color get _accentBForeground => _isDark ? Colors.white : _blue;
   Color get _amber => const Color(0xFFF7B84F);
   Color get _red => const Color(0xFFFF6B6B);
 
@@ -81,7 +83,7 @@ class _PreventiveMaintenanceScreenState
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(_teal),
+              valueColor: AlwaysStoppedAnimation<Color>(_accentAForeground),
             ),
           );
         }
@@ -134,7 +136,7 @@ class _PreventiveMaintenanceScreenState
                     )
                   : RefreshIndicator(
                       onRefresh: () async => _refresh(),
-                      color: _teal,
+                      color: _accentAForeground,
                       child: ListView.builder(
                         padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                         itemCount: filtered.length,
@@ -157,13 +159,13 @@ class _PreventiveMaintenanceScreenState
     final upToDate = records.where((item) => item.isUpToDate).length;
     return Row(
       children: [
-        _summaryTile('All PCs', records.length, Icons.computer_rounded, _blue),
+        _summaryTile('All PCs', records.length, Icons.computer_rounded, _accentBForeground),
         const SizedBox(width: 10),
         _summaryTile('Overdue', overdue, Icons.warning_amber_rounded, _red),
         const SizedBox(width: 10),
         _summaryTile('Due in 30 days', dueSoon, Icons.schedule_rounded, _amber),
         const SizedBox(width: 10),
-        _summaryTile('Up to date', upToDate, Icons.verified_rounded, _teal),
+        _summaryTile('Up to date', upToDate, Icons.verified_rounded, _accentAForeground),
       ],
     );
   }
@@ -217,7 +219,7 @@ class _PreventiveMaintenanceScreenState
             controller: _searchController,
             onChanged: (_) => setState(() {}),
             style: TextStyle(color: _text, fontSize: 14),
-            cursorColor: _teal,
+            cursorColor: _accentAForeground,
             decoration: InputDecoration(
               labelText: 'Search room or PC',
               labelStyle: TextStyle(color: _sub, fontSize: 13.5),
@@ -234,7 +236,7 @@ class _PreventiveMaintenanceScreenState
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: _teal, width: 1.5),
+                borderSide: BorderSide(color: _accentAForeground, width: 1.5),
               ),
             ),
           ),
@@ -258,7 +260,7 @@ class _PreventiveMaintenanceScreenState
           child: IconButton(
             tooltip: 'Refresh',
             onPressed: _refresh,
-            icon: Icon(Icons.refresh_rounded, color: _blue, size: 20),
+            icon: Icon(Icons.refresh_rounded, color: _accentBForeground, size: 20),
           ),
         ),
       ],
@@ -273,16 +275,16 @@ class _PreventiveMaintenanceScreenState
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
         decoration: BoxDecoration(
-          color: selected ? _teal.withValues(alpha: 0.14) : _field,
+          color: selected ? _accentAForeground.withValues(alpha: 0.14) : _field,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? _teal.withValues(alpha: 0.45) : _border,
+            color: selected ? _accentAForeground.withValues(alpha: 0.45) : _border,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? _teal : _sub,
+            color: selected ? _accentAForeground : _sub,
             fontSize: 12.5,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
@@ -357,8 +359,8 @@ class _PreventiveMaintenanceScreenState
           OutlinedButton.icon(
             onPressed: () => _showHistory(item),
             style: OutlinedButton.styleFrom(
-              foregroundColor: _blue,
-              side: BorderSide(color: _blue.withValues(alpha: 0.35)),
+              foregroundColor: _accentBForeground,
+              side: BorderSide(color: _accentBForeground.withValues(alpha: 0.35)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -367,7 +369,7 @@ class _PreventiveMaintenanceScreenState
             label: const Text('History'),
           ),
           const SizedBox(width: 8),
-          _gradientButton(
+          _primaryButton(
             label: 'Record Maintenance',
             loading: _saving.contains(item.workstationId),
             onPressed: _saving.contains(item.workstationId)
@@ -485,7 +487,7 @@ class _PreventiveMaintenanceScreenState
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.fact_check_rounded, color: _teal),
+                        Icon(Icons.fact_check_rounded, color: _accentAForeground),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -550,8 +552,8 @@ class _PreventiveMaintenanceScreenState
                                     onChanged: (value) => setDialogState(
                                       () => checklist[entry.key] = value ?? false,
                                     ),
-                                    activeColor: _teal,
-                                    checkColor: const Color(0xFF080A0E),
+                                    activeColor: _accentAForeground,
+                                    checkColor: Colors.white,
                                     dense: true,
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                                     shape: RoundedRectangleBorder(
@@ -617,7 +619,7 @@ class _PreventiveMaintenanceScreenState
                           child: Text('Cancel', style: TextStyle(color: _sub)),
                         ),
                         const SizedBox(width: 8),
-                        _gradientButton(
+                        _primaryButton(
                           label: 'Complete Maintenance',
                           loading: saving,
                           onPressed: saving ? null : save,
@@ -642,7 +644,7 @@ class _PreventiveMaintenanceScreenState
     return TextField(
       maxLines: lines,
       style: TextStyle(color: _text, fontSize: 13.5),
-      cursorColor: _teal,
+      cursorColor: _accentAForeground,
       decoration: _inputDecoration(label),
       onChanged: onChanged,
     );
@@ -665,7 +667,7 @@ class _PreventiveMaintenanceScreenState
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: _teal, width: 1.4),
+        borderSide: BorderSide(color: _accentAForeground, width: 1.4),
       ),
     );
   }
@@ -689,7 +691,7 @@ class _PreventiveMaintenanceScreenState
               children: [
                 Row(
                   children: [
-                    Icon(Icons.history_rounded, color: _blue),
+                    Icon(Icons.history_rounded, color: _accentBForeground),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -805,22 +807,26 @@ class _PreventiveMaintenanceScreenState
           const SizedBox(height: 5),
           Text(
             'Next due: ${_dateOnly(record.nextDueDate)}',
-            style: TextStyle(color: _blue, fontSize: 12, fontWeight: FontWeight.w600),
+            style: TextStyle(color: _accentBForeground, fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ],
       ),
     );
   }
 
-  Widget _gradientButton({
+  Widget _primaryButton({
     required String label,
     required bool loading,
     required VoidCallback? onPressed,
   }) {
+    final bgColor = loading
+        ? _teal.withValues(alpha: 0.25)
+        : (_isDark ? _teal : _blue);
+    final fgColor = _isDark ? Colors.black : Colors.white;
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: loading ? null : LinearGradient(colors: [_teal, _blue]),
-        color: loading ? _teal.withValues(alpha: 0.25) : null,
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ElevatedButton.icon(
@@ -829,21 +835,24 @@ class _PreventiveMaintenanceScreenState
           backgroundColor: Colors.transparent,
           disabledBackgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          foregroundColor: const Color(0xFF080A0E),
+          foregroundColor: fgColor,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         icon: loading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF080A0E)),
+                  valueColor: AlwaysStoppedAnimation<Color>(fgColor),
                 ),
               )
             : const Icon(Icons.task_alt_rounded, size: 17),
-        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+        label: Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }

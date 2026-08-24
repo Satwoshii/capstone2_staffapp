@@ -33,8 +33,11 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
@@ -42,13 +45,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
       ? Colors.white.withValues(alpha: 0.07)
       : Colors.black.withValues(alpha: 0.09);
   Color get _errorColor => const Color(0xFFFF6B6B);
-  Color get _successColor => const Color(0xFF2EE6C5);
-
-  LinearGradient get _accentGradient => LinearGradient(
-    colors: [_accentA, _accentB],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
-  );
+  Color get _successColor => _accentAForeground;
 
   @override
   void initState() {
@@ -171,7 +168,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(
                     child: CircularProgressIndicator(
-                        color: _accentA, strokeWidth: 2.5),
+                        color: _accentAForeground, strokeWidth: 2.5),
                   );
                 }
                 if (snapshot.hasError) {
@@ -191,7 +188,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                   );
                 }
                 return RefreshIndicator(
-                  color: _accentA,
+                  color: _accentAForeground,
                   backgroundColor: _cardColor,
                   onRefresh: () async => _refresh(),
                   child: ListView.builder(
@@ -233,7 +230,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
               controller: _roomController,
               enabled: !_saving,
               style: TextStyle(color: _textColor, fontSize: 15),
-              cursorColor: _accentA,
+              cursorColor: _accentAForeground,
               decoration: _fieldDecoration('Room/Lab Name', Icons.meeting_room_outlined),
               validator: (value) {
                 final room = (value ?? '').trim();
@@ -248,7 +245,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: TextStyle(color: _textColor, fontSize: 15),
-              cursorColor: _accentA,
+              cursorColor: _accentAForeground,
               decoration: _fieldDecoration('Planned PC Count', Icons.computer),
               validator: (value) {
                 final count = int.tryParse((value ?? '').trim());
@@ -298,20 +295,24 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
   }
 
   Widget _buildAddButton() {
+    final bgColor = _saving
+        ? _accentA.withValues(alpha: 0.25)
+        : (_isDarkMode ? _accentA : _accentB);
+    final fgColor = _isDarkMode ? Colors.black : Colors.white;
+
     return SizedBox(
       height: 52,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: _saving ? null : _accentGradient,
-          color: _saving ? _accentA.withValues(alpha: 0.25) : null,
+          color: bgColor,
           borderRadius: BorderRadius.circular(14),
           boxShadow: _saving
               ? []
               : [
             BoxShadow(
-              color: _accentA.withValues(alpha: 0.3),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
+              color: bgColor.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -327,21 +328,21 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (_saving)
-                    const SizedBox(
+                    SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF080A0E)),
+                        valueColor: AlwaysStoppedAnimation<Color>(fgColor),
                       ),
                     )
                   else
-                    const Icon(Icons.add, color: Color(0xFF080A0E), size: 20),
+                    Icon(Icons.add, color: fgColor, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     _saving ? 'Creating...' : 'Add Room',
-                    style: const TextStyle(
-                      color: Color(0xFF080A0E),
+                    style: TextStyle(
+                      color: fgColor,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                     ),
@@ -396,17 +397,9 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
             height: 44,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: room.active
-                  ? LinearGradient(
-                colors: [
-                  _accentA.withValues(alpha: 0.15),
-                  _accentB.withValues(alpha: 0.12),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-                  : null,
-              color: room.active ? null : _fieldColor,
+              color: room.active
+                  ? (_isDarkMode ? _accentA : _accentB)
+                  : _fieldColor,
               border: Border.all(
                 color: room.active
                     ? _accentA.withValues(alpha: 0.35)
@@ -414,17 +407,13 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                 width: 1.2,
               ),
             ),
-            child: room.active
-                ? ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [_accentA, _accentB],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ).createShader(bounds),
-              child: const Icon(Icons.meeting_room,
-                  color: Colors.white, size: 22),
-            )
-                : Icon(Icons.block, color: _subTextColor, size: 22),
+            child: Icon(
+              room.active ? Icons.meeting_room : Icons.block,
+              color: room.active
+                  ? (_isDarkMode ? Colors.black : Colors.white)
+                  : _subTextColor,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -454,7 +443,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
             height: 22,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: _accentA,
+              color: _accentAForeground,
             ),
           )
               : Row(
@@ -511,14 +500,15 @@ class _ThemedSwitch extends StatelessWidget {
         width: 44,
         height: 26,
         padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          gradient: value
-              ? LinearGradient(colors: [accentA, accentB])
-              : null,
-          color: value ? null : fieldColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: value ? Colors.transparent : borderColor),
-        ),
+          decoration: BoxDecoration(
+            color: value
+                ? (Theme.of(context).brightness == Brightness.dark
+                    ? accentA
+                    : accentB)
+                : fieldColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: value ? Colors.transparent : borderColor),
+          ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,

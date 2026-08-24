@@ -30,15 +30,18 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
   Color get _cardColor => _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
   Color get _borderColor => _isDarkMode
       ? Colors.white.withValues(alpha: 0.07)
       : Colors.black.withValues(alpha: 0.09);
-  Color get _repairedColor => const Color(0xFF2EE6C5);
+  Color get _repairedColor => _accentAForeground;
 
   @override
   void initState() {
@@ -124,14 +127,13 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                             height: 40,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                colors: [
-                                  _accentA.withValues(alpha: 0.18),
-                                  _accentB.withValues(alpha: 0.14),
-                                ],
-                              ),
+                              color: _isDarkMode ? _accentA : _accentB,
                             ),
-                            child: Icon(Icons.build_rounded, color: _accentA, size: 20),
+                            child: Icon(
+                              Icons.build_rounded,
+                              color: _isDarkMode ? Colors.black : Colors.white,
+                              size: 20,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Text(
@@ -163,7 +165,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                         enabled: !saving,
                         maxLines: 4,
                         style: TextStyle(color: _textColor, fontSize: 14),
-                        cursorColor: _accentA,
+                        cursorColor: _accentAForeground,
                         decoration: InputDecoration(
                           labelText: 'Technician Notes / Action Taken',
                           alignLabelWithHint: true,
@@ -182,7 +184,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(color: _accentA, width: 1.5),
+                            borderSide: BorderSide(color: _accentAForeground, width: 1.5),
                           ),
                         ),
                         validator: (value) => (value ?? '').trim().isEmpty
@@ -200,7 +202,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                             child: const Text('Cancel'),
                           ),
                           const SizedBox(width: 8),
-                          _buildGradientButton(
+                          _primaryButton(
                             label: saving ? 'Saving…' : 'Submit Repair',
                             icon: Icons.check_rounded,
                             loading: saving,
@@ -219,18 +221,20 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
     );
   }
 
-  Widget _buildGradientButton({
+  Widget _primaryButton({
     required String label,
     required IconData icon,
     required bool loading,
     required VoidCallback? onPressed,
   }) {
+    final bgColor = loading
+        ? _accentA.withValues(alpha: 0.25)
+        : (_isDarkMode ? _accentA : _accentB);
+    final fgColor = _isDarkMode ? Colors.black : Colors.white;
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: loading
-            ? null
-            : LinearGradient(colors: [_accentA, _accentB]),
-        color: loading ? _accentA.withValues(alpha: 0.25) : null,
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ElevatedButton.icon(
@@ -239,17 +243,17 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
           disabledBackgroundColor: Colors.transparent,
-          foregroundColor: const Color(0xFF080A0E),
+          foregroundColor: fgColor,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
         icon: loading
-            ? const SizedBox(
+            ? SizedBox(
           width: 16,
           height: 16,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF080A0E)),
+            valueColor: AlwaysStoppedAnimation<Color>(fgColor),
           ),
         )
             : Icon(icon, size: 18),
@@ -273,7 +277,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(_accentA),
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentAForeground),
                   ),
                 );
               }
@@ -317,7 +321,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
 
               return RefreshIndicator(
                 onRefresh: () async => _refresh(),
-                color: _accentA,
+                color: _accentAForeground,
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
                   itemCount: reports.length,
@@ -346,7 +350,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
           child: TextField(
             controller: _searchController,
             style: TextStyle(color: _textColor, fontSize: 14),
-            cursorColor: _accentA,
+            cursorColor: _accentAForeground,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: 'Search room, PC, issue, or student',
@@ -379,6 +383,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
   }
 
   Widget _buildIncludeRepairedToggle() {
+    final activeColor = _isDarkMode ? _accentA : _accentB;
     return GestureDetector(
       onTap: () => setState(() => _showRepaired = !_showRepaired),
       child: AnimatedContainer(
@@ -386,17 +391,11 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: _showRepaired ? null : _fieldColor,
-          gradient: _showRepaired
-              ? LinearGradient(
-            colors: [
-              _accentA.withValues(alpha: 0.2),
-              _accentB.withValues(alpha: 0.16),
-            ],
-          )
-              : null,
+          color: _showRepaired
+              ? activeColor.withValues(alpha: 0.15)
+              : _fieldColor,
           border: Border.all(
-            color: _showRepaired ? _accentA.withValues(alpha: 0.5) : _borderColor,
+            color: _showRepaired ? activeColor.withValues(alpha: 0.5) : _borderColor,
           ),
         ),
         child: Row(
@@ -404,7 +403,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
             Icon(
               Icons.history_rounded,
               size: 18,
-              color: _showRepaired ? _accentA : _subTextColor,
+              color: _showRepaired ? activeColor : _subTextColor,
             ),
             const SizedBox(width: 8),
             Text(
@@ -431,7 +430,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
       child: IconButton(
         tooltip: 'Refresh',
         onPressed: _refresh,
-        icon: Icon(Icons.refresh_rounded, color: _accentB, size: 20),
+        icon: Icon(Icons.refresh_rounded, color: _accentBForeground, size: 20),
       ),
     );
   }
@@ -547,7 +546,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
         Icons.rate_review_rounded,
       );
     }
-    return _buildGradientButton(
+    return _primaryButton(
       label: 'Submit Repair',
       icon: Icons.build_rounded,
       loading: updating,

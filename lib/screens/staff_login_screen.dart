@@ -42,8 +42,11 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
@@ -220,12 +223,12 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
           Positioned(
             top: -80,
             left: -80,
-            child: _orb(280, _accentA.withValues(alpha: _isDarkMode ? 0.07 : 0.05)),
+            child: _orb(280, _accentA.withValues(alpha: _isDarkMode ? 0.12 : 0.09)),
           ),
           Positioned(
             bottom: -100,
             right: -60,
-            child: _orb(320, _accentB.withValues(alpha: _isDarkMode ? 0.06 : 0.04)),
+            child: _orb(320, _accentB.withValues(alpha: _isDarkMode ? 0.10 : 0.08)),
           ),
         ],
       ),
@@ -295,7 +298,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               style: TextStyle(color: _textColor, fontSize: 15),
-              cursorColor: _accentA,
+              cursorColor: _accentAForeground,
               decoration: _fieldDecoration('Staff Email', Icons.email_outlined),
               validator: (value) {
                 final email = (value ?? '').trim();
@@ -319,7 +322,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
               ],
               textInputAction: TextInputAction.done,
               style: TextStyle(color: _textColor, fontSize: 15),
-              cursorColor: _accentA,
+              cursorColor: _accentAForeground,
               decoration: _fieldDecoration(
                 'Password',
                 Icons.lock_outline_rounded,
@@ -358,7 +361,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
                 onPressed: _loading
                     ? null
                     : () => setState(() => _showServerSettings = !_showServerSettings),
-                style: TextButton.styleFrom(foregroundColor: _accentB),
+                style: TextButton.styleFrom(foregroundColor: _accentBForeground),
                 icon: const Icon(Icons.lan_outlined, size: 18),
                 label: Text(
                   _showServerSettings ? 'Hide server settings' : 'Server settings',
@@ -373,7 +376,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
                 controller: _serverController,
                 enabled: !_loading && !_testing,
                 style: TextStyle(color: _textColor, fontSize: 14),
-                cursorColor: _accentA,
+                cursorColor: _accentAForeground,
                 decoration: _fieldDecoration(
                   'Syswatch Server LAN Address',
                   Icons.dns_outlined,
@@ -401,7 +404,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
               const SizedBox(height: 14),
               _StatusBox(
                 message: _serverStatus!,
-                accent: _accentA,
+                accent: _accentAForeground,
                 textColor: _textColor,
                 background: _accentA.withValues(alpha: _isDarkMode ? 0.12 : 0.1),
               ),
@@ -428,8 +431,8 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
     return OutlinedButton.icon(
       onPressed: _testing ? null : _testServer,
       style: OutlinedButton.styleFrom(
-        foregroundColor: _accentB,
-        side: BorderSide(color: _accentB.withValues(alpha: 0.5)),
+        foregroundColor: _accentBForeground,
+        side: BorderSide(color: _accentBForeground.withValues(alpha: 0.5)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       icon: _testing
@@ -438,7 +441,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
         height: 16,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(_accentB),
+          valueColor: AlwaysStoppedAnimation<Color>(_accentBForeground),
         ),
       )
           : const Icon(Icons.network_check, size: 18),
@@ -451,22 +454,15 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       height: 52,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: _loading
-              ? null
-              : LinearGradient(
-            colors: [_accentA, _accentB],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          color: _loading ? _accentA.withValues(alpha: 0.25) : null,
+          color: _loading ? _fieldColor : (_isDarkMode ? _accentA : _accentB),
           borderRadius: BorderRadius.circular(14),
           boxShadow: _loading
               ? []
               : [
             BoxShadow(
-              color: _accentA.withValues(alpha: 0.3),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
+              color: (_isDarkMode ? _accentA : _accentB).withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             )
           ],
         ),
@@ -476,7 +472,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
             disabledBackgroundColor: Colors.transparent,
-            foregroundColor: const Color(0xFF080A0E),
+            foregroundColor: _isDarkMode ? Colors.black : Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
@@ -487,17 +483,19 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
                 ? Row(
               key: const ValueKey('loading'),
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
+              children: [
                 SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF080A0E)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _isDarkMode ? Colors.black : Colors.white,
+                    ),
                   ),
                 ),
-                SizedBox(width: 10),
-                Text(
+                const SizedBox(width: 10),
+                const Text(
                   'Signing in…',
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                 ),
@@ -506,15 +504,16 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
                 : Row(
               key: const ValueKey('idle'),
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(Icons.login_rounded, size: 20),
-                SizedBox(width: 8),
+              children: [
+                const Icon(Icons.login_rounded, size: 20),
+                const SizedBox(width: 8),
                 Text(
                   'Sign In',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 15.5,
                     letterSpacing: 0.2,
+                    color: _isDarkMode ? Colors.black : Colors.white,
                   ),
                 ),
               ],
@@ -531,11 +530,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       height: 76,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [_accentA.withValues(alpha: 0.15), _accentB.withValues(alpha: 0.12)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: _isDarkMode ? _accentA.withValues(alpha: 0.12) : _accentB.withValues(alpha: 0.08),
         border: Border.all(color: _accentA.withValues(alpha: 0.45), width: 1.5),
         boxShadow: [
           BoxShadow(
@@ -545,17 +540,10 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
           ),
         ],
       ),
-      child: ShaderMask(
-        shaderCallback: (bounds) => LinearGradient(
-          colors: [_accentA, _accentB],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ).createShader(bounds),
-        child: const Icon(
-          Icons.admin_panel_settings_rounded,
-          color: Colors.white,
-          size: 34,
-        ),
+      child: Icon(
+        Icons.admin_panel_settings_rounded,
+        color: _isDarkMode ? _accentA : _accentB,
+        size: 34,
       ),
     );
   }

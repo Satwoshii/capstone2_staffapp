@@ -27,8 +27,11 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
   Color get _cardColor => _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
@@ -72,7 +75,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(_accentA),
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentAForeground),
                   ),
                 );
               }
@@ -116,7 +119,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
 
               return RefreshIndicator(
                 onRefresh: () async => _refresh(),
-                color: _accentA,
+                color: _accentAForeground,
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
                   itemCount: records.length,
@@ -144,7 +147,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
           child: TextField(
             controller: _searchController,
             style: TextStyle(color: _textColor, fontSize: 14),
-            cursorColor: _accentA,
+            cursorColor: _accentAForeground,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: 'Search room, PC, status, or student',
@@ -162,7 +165,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: _accentA, width: 1.5),
+                borderSide: BorderSide(color: _accentAForeground, width: 1.5),
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
@@ -177,6 +180,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
   }
 
   Widget _buildIssuesOnlyToggle() {
+    final activeColor = _isDarkMode ? _accentA : _accentB;
     return GestureDetector(
       onTap: () => setState(() => _issuesOnly = !_issuesOnly),
       child: AnimatedContainer(
@@ -184,17 +188,11 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: _issuesOnly ? null : _fieldColor,
-          gradient: _issuesOnly
-              ? LinearGradient(
-            colors: [
-              _accentA.withValues(alpha: 0.2),
-              _accentB.withValues(alpha: 0.16),
-            ],
-          )
-              : null,
+          color: _issuesOnly
+              ? activeColor.withValues(alpha: 0.15)
+              : _fieldColor,
           border: Border.all(
-            color: _issuesOnly ? _accentA.withValues(alpha: 0.5) : _borderColor,
+            color: _issuesOnly ? activeColor.withValues(alpha: 0.5) : _borderColor,
           ),
         ),
         child: Row(
@@ -202,7 +200,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
             Icon(
               Icons.warning_amber_rounded,
               size: 18,
-              color: _issuesOnly ? _accentA : _subTextColor,
+              color: _issuesOnly ? activeColor : _subTextColor,
             ),
             const SizedBox(width: 8),
             Text(
@@ -229,7 +227,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
       child: IconButton(
         tooltip: 'Refresh',
         onPressed: _refresh,
-        icon: Icon(Icons.refresh_rounded, color: _accentB, size: 20),
+        icon: Icon(Icons.refresh_rounded, color: _accentBForeground, size: 20),
       ),
     );
   }
@@ -392,6 +390,24 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
       ),
     );
   }
+  _HealthStyle _styleForStatus(String value) {
+    final status = value.trim().toLowerCase();
+    if (['healthy', 'ok', 'online', 'normal', 'working'].contains(status)) {
+      return _HealthStyle(Icons.check_circle, _accentAForeground, true);
+    }
+    if (status.contains('critical') ||
+        status.contains('broken') ||
+        status.contains('offline') ||
+        status.contains('failed')) {
+      return const _HealthStyle(Icons.error, Color(0xFFFF6B6B), false);
+    }
+    if (status.contains('minor') ||
+        status.contains('warning') ||
+        status.contains('degraded')) {
+      return const _HealthStyle(Icons.warning_amber, Color(0xFFF7B84F), false);
+    }
+    return _HealthStyle(Icons.help_outline, _accentBForeground, false);
+  }
 }
 
 class _HealthStyle {
@@ -402,21 +418,3 @@ class _HealthStyle {
   const _HealthStyle(this.icon, this.color, this.isHealthy);
 }
 
-_HealthStyle _styleForStatus(String value) {
-  final status = value.trim().toLowerCase();
-  if (['healthy', 'ok', 'online', 'normal', 'working'].contains(status)) {
-    return const _HealthStyle(Icons.check_circle, Color(0xFF2EE6C5), true);
-  }
-  if (status.contains('critical') ||
-      status.contains('broken') ||
-      status.contains('offline') ||
-      status.contains('failed')) {
-    return const _HealthStyle(Icons.error, Color(0xFFFF6B6B), false);
-  }
-  if (status.contains('minor') ||
-      status.contains('warning') ||
-      status.contains('degraded')) {
-    return const _HealthStyle(Icons.warning_amber, Color(0xFFF7B84F), false);
-  }
-  return const _HealthStyle(Icons.help_outline, Color(0xFF4F8EF7), false);
-}

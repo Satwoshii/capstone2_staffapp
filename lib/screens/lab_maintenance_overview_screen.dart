@@ -36,8 +36,11 @@ class _LabMaintenanceOverviewScreenState
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
@@ -47,12 +50,6 @@ class _LabMaintenanceOverviewScreenState
   Color get _errorColor => const Color(0xFFFF6B6B);
   Color get _warnColor => const Color(0xFFF9A825);
   Color get _okColor => const Color(0xFF22A06B);
-
-  LinearGradient get _accentGradient => LinearGradient(
-    colors: [_accentA, _accentB],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
-  );
 
   @override
   void initState() {
@@ -115,7 +112,7 @@ class _LabMaintenanceOverviewScreenState
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
-              child: CircularProgressIndicator(color: _accentA, strokeWidth: 2.5),
+              child: CircularProgressIndicator(color: _accentAForeground, strokeWidth: 2.5),
             );
           }
           if (snapshot.hasError) {
@@ -161,7 +158,7 @@ class _LabMaintenanceOverviewScreenState
       List<MaintenanceRecord> maintenanceHistory,
       ) {
     return RefreshIndicator(
-      color: _accentA,
+      color: _accentAForeground,
       backgroundColor: _cardColor,
       onRefresh: () async => _refresh(),
       child: ListView(
@@ -334,12 +331,12 @@ class _LabMaintenanceOverviewScreenState
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 16, color: _accentB),
+                Icon(icon, size: 16, color: _accentBForeground),
                 const SizedBox(width: 8),
                 Text(
                   label,
                   style: TextStyle(
-                    color: _accentB,
+                    color: _accentBForeground,
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),
@@ -510,7 +507,7 @@ class _LabMaintenanceOverviewScreenState
               _badge('Warning ${room.warningPcCount}', _warnColor),
               _badge('Damaged ${room.damagedPcCount}', _errorColor),
               _badge('Problems ${room.activeProblemCount}', color),
-              _badge('Awaiting Teacher ${room.awaitingTeacherApprovalCount}', _accentB),
+              _badge('Awaiting Teacher ${room.awaitingTeacherApprovalCount}', _accentBForeground),
             ],
           ),
         ],
@@ -657,20 +654,13 @@ class _LabMaintenanceOverviewScreenState
                 height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [_accentA.withValues(alpha: 0.15), _accentB.withValues(alpha: 0.12)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: _isDarkMode ? _accentA : _accentB,
                   border: Border.all(color: _accentA.withValues(alpha: 0.35), width: 1.1),
                 ),
-                child: ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(
-                    colors: [_accentA, _accentB],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ).createShader(bounds),
-                  child: Icon(icon, size: 16, color: Colors.white),
+                child: Icon(
+                  icon,
+                  size: 16,
+                  color: _isDarkMode ? Colors.black : Colors.white,
                 ),
               ),
               const SizedBox(width: 10),

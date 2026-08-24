@@ -25,8 +25,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Color get _cardColor => _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
@@ -70,7 +73,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(_accentA),
+              valueColor: AlwaysStoppedAnimation<Color>(_accentAForeground),
             ),
           );
         }
@@ -100,7 +103,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
         return RefreshIndicator(
           onRefresh: () async => _refresh(),
-          color: _accentA,
+          color: _accentAForeground,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             children: [
@@ -124,13 +127,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     title: 'Workstations',
                     value: data.summary.workstations.toString(),
                     icon: Icons.computer_rounded,
-                    color: _accentB,
+                    color: _accentBForeground,
                   ),
                   _statCard(
                     title: 'Online',
                     value: data.summary.onlineWorkstations.toString(),
                     icon: Icons.lan_rounded,
-                    color: _accentA,
+                    color: _accentAForeground,
                   ),
                   _statCard(
                     title: 'Open Faults',
@@ -142,13 +145,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     title: 'Repaired',
                     value: data.summary.repairedFaults.toString(),
                     icon: Icons.build_circle_rounded,
-                    color: _accentA,
+                    color: _accentAForeground,
                   ),
                   _statCard(
                     title: 'Students',
                     value: data.summary.students.toString(),
                     icon: Icons.school_rounded,
-                    color: _accentB,
+                    color: _accentBForeground,
                   ),
                   _statCard(
                     title: 'Login Logs',
@@ -193,7 +196,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       child: IconButton(
         tooltip: 'Refresh',
         onPressed: _refresh,
-        icon: Icon(Icons.refresh_rounded, color: _accentB, size: 20),
+        icon: Icon(Icons.refresh_rounded, color: _accentBForeground, size: 20),
       ),
     );
   }
@@ -271,7 +274,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   // ── Fault report card ────────────────────────────────────────────────────
   Widget _buildFaultCard(FaultReport report) {
-    final color = report.repaired ? _accentA : const Color(0xFFF7B84F);
+    final color = report.repaired ? _accentAForeground : const Color(0xFFF7B84F);
 
     return Container(
       padding: const EdgeInsets.all(14),

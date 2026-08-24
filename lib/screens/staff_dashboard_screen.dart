@@ -38,8 +38,11 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
@@ -168,20 +171,13 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [_accentA.withValues(alpha: 0.15), _accentB.withValues(alpha: 0.12)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: _isDarkMode ? _accentA : _accentB,
         border: Border.all(color: _accentA.withValues(alpha: 0.45), width: 1.2),
       ),
-      child: ShaderMask(
-        shaderCallback: (bounds) => LinearGradient(
-          colors: [_accentA, _accentB],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ).createShader(bounds),
-        child: const Icon(Icons.memory_rounded, color: Colors.white, size: 20),
+      child: Icon(
+        Icons.memory_rounded,
+        color: _isDarkMode ? Colors.black : Colors.white,
+        size: 20,
       ),
     );
   }
@@ -192,7 +188,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       child: _buildPillChip(
         icon: Icons.lan_rounded,
         label: 'Intranet',
-        iconColor: _accentB,
+        iconColor: _accentBForeground,
       ),
     );
   }
@@ -204,7 +200,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
     return _buildPillChip(
       icon: Icons.person_rounded,
       label: '$name • ${widget.user.roleLabel}',
-      iconColor: _accentA,
+      iconColor: _accentAForeground,
     );
   }
 
@@ -250,7 +246,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
           height: 18,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(_accentB),
+            valueColor: AlwaysStoppedAnimation<Color>(_accentBForeground),
           ),
         )
             : Icon(Icons.logout_rounded, size: 19, color: _subTextColor),
@@ -277,7 +273,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                   child: Text(
                     widget.user.isSuperAdmin ? 'S' : 'A',
                     style: TextStyle(
-                      color: _accentA,
+                      color: _accentAForeground,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
@@ -310,6 +306,8 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
 
   Widget _sidebarItem({required int index, required _MenuItem item}) {
     final selected = index == _selectedIndex;
+    final activeColor = _isDarkMode ? _accentA : _accentB;
+
     return GestureDetector(
       onTap: () => setState(() => _selectedIndex = index),
       child: AnimatedContainer(
@@ -318,18 +316,9 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          gradient: selected
-              ? LinearGradient(
-            colors: [
-              _accentA.withValues(alpha: 0.18),
-              _accentB.withValues(alpha: 0.14),
-            ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          )
-              : null,
+          color: selected ? activeColor.withValues(alpha: 0.12) : null,
           border: selected
-              ? Border.all(color: _accentA.withValues(alpha: 0.35), width: 1)
+              ? Border.all(color: activeColor.withValues(alpha: 0.4), width: 1)
               : null,
         ),
         child: Row(
@@ -337,7 +326,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
             Icon(
               item.icon,
               size: 19,
-              color: selected ? _accentA : _subTextColor.withValues(alpha: 0.7),
+              color: selected ? activeColor : _subTextColor.withValues(alpha: 0.7),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -365,7 +354,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
           child: Row(
             children: [
-              Icon(selected.icon, color: _accentA, size: 22),
+              Icon(selected.icon, color: _accentAForeground, size: 22),
               const SizedBox(width: 10),
               Text(
                 selected.title,

@@ -25,8 +25,11 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
   Color get _cardColor => _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
@@ -70,7 +73,7 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(_accentA),
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentAForeground),
                   ),
                 );
               }
@@ -110,7 +113,7 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
 
               return RefreshIndicator(
                 onRefresh: () async => _refresh(),
-                color: _accentA,
+                color: _accentAForeground,
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
                   itemCount: records.length,
@@ -138,7 +141,7 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
           child: TextField(
             controller: _searchController,
             style: TextStyle(color: _textColor, fontSize: 14),
-            cursorColor: _accentA,
+            cursorColor: _accentAForeground,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: 'Search room, PC, student, or email',
@@ -156,7 +159,7 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: _accentA, width: 1.5),
+                borderSide: BorderSide(color: _accentAForeground, width: 1.5),
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
@@ -178,7 +181,7 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
       child: IconButton(
         tooltip: 'Refresh',
         onPressed: _refresh,
-        icon: Icon(Icons.refresh_rounded, color: _accentB, size: 20),
+        icon: Icon(Icons.refresh_rounded, color: _accentBForeground, size: 20),
       ),
     );
   }
@@ -203,16 +206,9 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
             height: 44,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  _accentA.withValues(alpha: 0.16),
-                  _accentB.withValues(alpha: 0.12),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: _accentA.withValues(alpha: 0.16),
             ),
-            child: Icon(Icons.person_pin_circle_rounded, color: _accentA, size: 22),
+            child: Icon(Icons.person_pin_circle_rounded, color: _accentAForeground, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -280,7 +276,7 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
     final active = status.trim().toLowerCase() == 'active' ||
         status.trim().toLowerCase() == 'online' ||
         status.trim().toLowerCase() == 'logged in';
-    final color = active ? _accentA : _subTextColor;
+    final color = active ? _accentAForeground : _subTextColor;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

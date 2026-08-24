@@ -37,8 +37,11 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFF2EE6C5);
-  Color get _accentB => const Color(0xFF4F8EF7);
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground =>
+      _isDarkMode ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
   Color get _subTextColor => _isDarkMode ? Colors.white54 : Colors.black45;
@@ -46,12 +49,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       ? Colors.white.withValues(alpha: 0.07)
       : Colors.black.withValues(alpha: 0.09);
   Color get _errorColor => const Color(0xFFFF6B6B);
-
-  LinearGradient get _accentGradient => LinearGradient(
-    colors: [_accentA, _accentB],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
-  );
+  Color get _accentColor => _isDarkMode ? _accentA : _accentB;
 
   @override
   void initState() {
@@ -160,17 +158,21 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   ButtonStyle get _textButtonStyle =>
       TextButton.styleFrom(foregroundColor: _subTextColor);
 
-  Widget _gradientDialogButton({
+  Widget _primaryDialogButton({
     required String label,
     IconData? icon,
     required VoidCallback? onPressed,
     bool loading = false,
   }) {
     final disabled = onPressed == null;
+    final bgColor = disabled
+        ? _accentA.withValues(alpha: 0.2)
+        : _accentColor;
+    final fgColor = _isDarkMode ? Colors.black : Colors.white;
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: disabled ? null : _accentGradient,
-        color: disabled ? _accentA.withValues(alpha: 0.2) : null,
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Material(
@@ -184,21 +186,21 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (loading)
-                  const SizedBox(
+                  SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF080A0E)),
+                      valueColor: AlwaysStoppedAnimation<Color>(fgColor),
                     ),
                   )
                 else if (icon != null)
-                  Icon(icon, size: 17, color: const Color(0xFF080A0E)),
+                  Icon(icon, size: 17, color: fgColor),
                 if (loading || icon != null) const SizedBox(width: 8),
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: Color(0xFF080A0E),
+                  style: TextStyle(
+                    color: fgColor,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -263,7 +265,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         obscureText: obscure,
                         maxLength: StaffService.maximumPasswordLength,
                         style: TextStyle(color: _textColor),
-                        cursorColor: _accentA,
+                        cursorColor: _accentAForeground,
                         decoration: _fieldDecoration(
                           'New Password',
                           Icons.lock_reset,
@@ -299,7 +301,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                   style: _textButtonStyle,
                   child: const Text('Cancel'),
                 ),
-                _gradientDialogButton(
+                _primaryDialogButton(
                   label: saving ? 'Saving...' : 'Reset',
                   loading: saving,
                   onPressed: saving ? null : save,
@@ -385,7 +387,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         TextFormField(
                           enabled: !saving,
                           style: TextStyle(color: _textColor),
-                          cursorColor: _accentA,
+                          cursorColor: _accentAForeground,
                           decoration:
                           _fieldDecoration('Display Name', Icons.badge_outlined),
                           validator: (value) => (value ?? '').trim().isEmpty
@@ -398,7 +400,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           enabled: !saving,
                           keyboardType: TextInputType.emailAddress,
                           style: TextStyle(color: _textColor),
-                          cursorColor: _accentA,
+                          cursorColor: _accentAForeground,
                           decoration:
                           _fieldDecoration('Email', Icons.email_outlined),
                           validator: (value) {
@@ -415,7 +417,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           obscureText: obscurePassword,
                           maxLength: StaffService.maximumPasswordLength,
                           style: TextStyle(color: _textColor),
-                          cursorColor: _accentA,
+                          cursorColor: _accentAForeground,
                           decoration: _fieldDecoration(
                             'Temporary Password',
                             Icons.lock_outline,
@@ -481,7 +483,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                           TextFormField(
                             enabled: !saving,
                             style: TextStyle(color: _textColor),
-                            cursorColor: _accentA,
+                            cursorColor: _accentAForeground,
                             decoration:
                             _fieldDecoration('Student ID', Icons.numbers),
                             validator: (value) => role == 'student' &&
@@ -545,7 +547,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                   style: _textButtonStyle,
                   child: const Text('Cancel'),
                 ),
-                _gradientDialogButton(
+                _primaryDialogButton(
                   label: saving ? 'Creating...' : 'Create',
                   icon: Icons.person_add,
                   loading: saving,
@@ -593,8 +595,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           _ThemedSwitch(
             value: active,
             onChanged: saving ? (_) {} : onChanged,
-            accentA: _accentA,
-            accentB: _accentB,
+            accentColor: _accentColor,
             fieldColor: _cardColor,
             borderColor: _borderColor,
           ),
@@ -621,7 +622,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(
                     child: CircularProgressIndicator(
-                        color: _accentA, strokeWidth: 2.5),
+                        color: _accentAForeground, strokeWidth: 2.5),
                   );
                 }
                 if (snapshot.hasError) {
@@ -662,7 +663,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                 }
 
                 return RefreshIndicator(
-                  color: _accentA,
+                  color: _accentAForeground,
                   backgroundColor: _cardColor,
                   onRefresh: () async => _refresh(),
                   child: ListView.builder(
@@ -722,7 +723,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                 child: TextField(
                   controller: _searchController,
                   style: TextStyle(color: _textColor, fontSize: 14),
-                  cursorColor: _accentA,
+                  cursorColor: _accentAForeground,
                   decoration: _fieldDecoration(
                     'Search name, email, or Student ID',
                     Icons.search,
@@ -786,17 +787,20 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   }
 
   Widget _buildAddAccountButton() {
+    final bgColor = _isDarkMode ? _accentA : _accentB;
+    final fgColor = _isDarkMode ? Colors.black : Colors.white;
+
     return SizedBox(
       height: 48,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: _accentGradient,
+          color: bgColor,
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: _accentA.withValues(alpha: 0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 5),
+              color: bgColor.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -805,17 +809,17 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
             onTap: _showAddAccountDialog,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.person_add, color: Color(0xFF080A0E), size: 19),
-                  SizedBox(width: 8),
+                  Icon(Icons.person_add, color: fgColor, size: 19),
+                  const SizedBox(width: 8),
                   Text(
                     'Add Account',
                     style: TextStyle(
-                      color: Color(0xFF080A0E),
+                      color: fgColor,
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
@@ -855,17 +859,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             height: 44,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: user.active
-                  ? LinearGradient(
-                colors: [
-                  _accentA.withValues(alpha: 0.15),
-                  _accentB.withValues(alpha: 0.12),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-                  : null,
-              color: user.active ? null : _fieldColor,
+              color: user.active 
+                  ? (_isDarkMode ? _accentA.withValues(alpha: 0.12) : _accentB.withValues(alpha: 0.08))
+                  : _fieldColor,
               border: Border.all(
                 color: user.active
                     ? _accentA.withValues(alpha: 0.35)
@@ -874,17 +870,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               ),
             ),
             child: user.active
-                ? ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [_accentA, _accentB],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ).createShader(bounds),
-              child: Icon(
-                user.isSuperAdmin ? Icons.verified_user : Icons.person,
-                color: Colors.white,
-                size: 22,
-              ),
+                ? Icon(
+              user.isSuperAdmin ? Icons.verified_user : Icons.person,
+              color: _accentAForeground,
+              size: 22,
             )
                 : Icon(Icons.person_off, color: _subTextColor, size: 22),
           ),
@@ -906,9 +895,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                         fontSize: 15.5,
                       ),
                     ),
-                    if (isCurrent) _buildTag('You', _accentA),
+                    if (isCurrent) _buildTag('You', _accentAForeground),
                     if (user.isSuperAdmin)
-                      _buildTag('SUPER ADMIN', _accentB, icon: Icons.shield),
+                      _buildTag('SUPER ADMIN', _accentBForeground, icon: Icons.shield),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -958,7 +947,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: _accentA,
+                  color: _accentAForeground,
                 ),
               )
                   : _ThemedSwitch(
@@ -967,8 +956,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                     ? (_) => _toggleActive(user)
                     : (_) {},
                 disabled: !canChangeActive,
-                accentA: _accentA,
-                accentB: _accentB,
+                accentColor: _accentColor,
                 fieldColor: _fieldColor,
                 borderColor: _borderColor,
               ),
@@ -1035,7 +1023,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                 size: 18,
                 color: disabled
                     ? _subTextColor.withValues(alpha: 0.4)
-                    : _accentB,
+                    : _accentBForeground,
               ),
             ),
           ),
@@ -1048,8 +1036,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
 class _ThemedSwitch extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
-  final Color accentA;
-  final Color accentB;
+  final Color accentColor;
   final Color fieldColor;
   final Color borderColor;
   final bool disabled;
@@ -1057,8 +1044,7 @@ class _ThemedSwitch extends StatelessWidget {
   const _ThemedSwitch({
     required this.value,
     required this.onChanged,
-    required this.accentA,
-    required this.accentB,
+    required this.accentColor,
     required this.fieldColor,
     required this.borderColor,
     this.disabled = false,
@@ -1076,8 +1062,9 @@ class _ThemedSwitch extends StatelessWidget {
           height: 26,
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            gradient: value ? LinearGradient(colors: [accentA, accentB]) : null,
-            color: value ? null : fieldColor,
+            color: value
+                ? accentColor
+                : fieldColor,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: value ? Colors.transparent : borderColor),
           ),

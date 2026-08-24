@@ -36,6 +36,10 @@ class _AdminTeacherChatScreenState extends State<AdminTeacherChatScreen> {
   Color get _sub => _dark ? Colors.white54 : Colors.black54;
   Color get _border =>
       _dark ? Colors.white.withValues(alpha: 0.08) : Colors.black12;
+  Color get _accentA => const Color(0xFFC0C0C0);
+  Color get _accentB => const Color(0xFF000000);
+  Color get _accentAForeground => _dark ? _accentA : const Color(0xFF606060);
+  Color get _accentBForeground => _dark ? Colors.white : _accentB;
 
   @override
   void initState() {
@@ -174,7 +178,7 @@ class _AdminTeacherChatScreenState extends State<AdminTeacherChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return Center(child: CircularProgressIndicator(color: _accentAForeground));
     if (_error != null && _conversations.isEmpty) {
       return _stateMessage(
         Icons.cloud_off_rounded,
@@ -246,13 +250,13 @@ class _AdminTeacherChatScreenState extends State<AdminTeacherChatScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(14),
                     color: selected
-                        ? const Color(0xFF2EE6C5).withValues(alpha: 0.10)
+                        ? _accentAForeground.withValues(alpha: 0.10)
                         : null,
                     child: Row(
                       children: [
                         CircleAvatar(
                           backgroundColor:
-                              const Color(0xFF4F8EF7).withValues(alpha: 0.15),
+                              _accentBForeground.withValues(alpha: 0.15),
                           child: const Icon(Icons.school_rounded),
                         ),
                         const SizedBox(width: 10),
@@ -313,7 +317,7 @@ class _AdminTeacherChatScreenState extends State<AdminTeacherChatScreen> {
           Divider(height: 1, color: _border),
           Expanded(
             child: _loadingMessages && _messages.isEmpty
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(child: CircularProgressIndicator(color: _accentAForeground))
                 : _messages.isEmpty
                     ? Center(
                         child: Text(
@@ -340,7 +344,7 @@ class _AdminTeacherChatScreenState extends State<AdminTeacherChatScreen> {
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          const Icon(Icons.meeting_room_rounded, color: Color(0xFF4F8EF7)),
+          const Icon(Icons.meeting_room_rounded, color: Color(0xFF000000)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -387,7 +391,7 @@ class _AdminTeacherChatScreenState extends State<AdminTeacherChatScreen> {
 
   Widget _messageBubble(TeacherChatMessage message) {
     final mine = message.isAdmin;
-    final color = mine ? const Color(0xFF2EE6C5) : const Color(0xFF4F8EF7);
+    final color = mine ? _accentAForeground : _accentBForeground;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -450,10 +454,10 @@ class _AdminTeacherChatScreenState extends State<AdminTeacherChatScreen> {
           FilledButton.icon(
             onPressed: closed || _sending ? null : _send,
             icon: _sending
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _accentAForeground),
                   )
                 : const Icon(Icons.send_rounded),
             label: const Text('Send'),
