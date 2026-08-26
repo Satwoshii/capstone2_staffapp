@@ -92,13 +92,23 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
 
   Future<void> _logout() async {
     if (_loggingOut) return;
+
     setState(() => _loggingOut = true);
-    await StaffService.instance.logout();
+
+    try {
+      await StaffService.instance.logout();
+    } catch (_) {
+      // A local route reset must still be possible if the server logout request
+      // fails. The saved token is cleared by StaffService where applicable.
+    }
+
     if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
+
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
-          (_) => false,
+      (_) => false,
     );
   }
 
@@ -369,9 +379,13 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
           ),
         ),
         Expanded(
-          child: IndexedStack(
-            index: _selectedIndex,
-            children: [for (final item in _menuItems) item.screen],
+          // Mount only the selected screen. The previous IndexedStack kept every
+          // Admin module alive at the same time, including all of their periodic
+          // timers and inherited-widget dependencies. During logout/theme
+          // changes that made the route subtree much harder to deactivate safely.
+          child: KeyedSubtree(
+            key: ValueKey<String>(selected.title),
+            child: selected.screen,
           ),
         ),
       ],

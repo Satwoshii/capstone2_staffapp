@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/app_config_service.dart';
+import '../services/server_discovery_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/theme_toggle_button.dart';
@@ -72,7 +75,9 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
     ).animate(CurvedAnimation(parent: _entryController, curve: Curves.easeOutCubic));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _entryController.forward();
+      if (!mounted) return;
+      _entryController.forward();
+      unawaited(_autoDiscoverServer());
     });
   }
 
@@ -86,6 +91,35 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
   }
 
   // ── Data ──────────────────────────────────────────────────────────────────
+  Future<void> _autoDiscoverServer({bool force = false}) async {
+    if (!mounted) return;
+    setState(() {
+      _serverStatus = 'Finding Syswatch server automatically...';
+      _errorMessage = null;
+    });
+
+    try {
+      final found = await ServerDiscoveryService.instance.discover(
+        forceLanScan: force,
+      );
+      if (!mounted) return;
+      if (found != null) {
+        _serverController.text = found;
+        setState(() => _serverStatus = 'Connected automatically to Syswatch server.');
+      } else {
+        setState(() {
+          _serverStatus = 'Automatic discovery is waiting for the server. '
+              'Manual settings remain available as a fallback.';
+        });
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _serverStatus = 'Automatic discovery could not find the server yet.';
+      });
+    }
+  }
+
   Future<void> _saveServer() async {
     await AppConfigService.instance.saveServerUrl(_serverController.text);
   }
@@ -99,7 +133,14 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
     });
 
     try {
-      await _saveServer();
+      final found = await ServerDiscoveryService.instance.discover(
+        forceLanScan: true,
+      );
+      if (found != null) {
+        _serverController.text = found;
+      } else {
+        await _saveServer();
+      }
       final result = await StaffService.instance.health();
       if (!mounted) return;
       setState(() {
@@ -124,27 +165,50 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       _serverStatus = null;
     });
 
+    var routeChanged = false;
+
     try {
-      await _saveServer();
+      final found = await ServerDiscoveryService.instance.discover();
+      if (found != null) {
+        _serverController.text = found;
+      } else {
+        // Keep manual server settings only as a fallback when discovery fails.
+        await _saveServer();
+      }
+
       final user = await StaffService.instance.login(
         email: _emailController.text,
         password: _passwordController.text,
       );
 
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
+
+      // Finish all login-page interaction before replacing the route.
+      // In particular, do not call setState from the finally block after
+      // pushReplacement starts deactivating this Form/Theme subtree.
+      FocusManager.instance.primaryFocus?.unfocus();
+      _entryController.stop();
+
+      routeChanged = true;
+
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => user.isTeacher
               ? TeacherDashboardScreen(user: user)
               : StaffDashboardScreen(user: user),
         ),
       );
+
+      return;
     } catch (error) {
       if (!mounted) return;
+
+      routeChanged = false;
       setState(() => _errorMessage = cleanError(error));
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!routeChanged && mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 

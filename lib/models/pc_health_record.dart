@@ -7,7 +7,7 @@ class PcHealthRecord {
   final String pcId;
   final String status;
   final DateTime? lastCheck;
-  final String? lastStudentEmail;
+  final String? lastDisplayName;
   final dynamic details;
 
   const PcHealthRecord({
@@ -17,7 +17,7 @@ class PcHealthRecord {
     required this.pcId,
     required this.status,
     this.lastCheck,
-    this.lastStudentEmail,
+    this.lastDisplayName,
     this.details,
   });
 
@@ -37,7 +37,9 @@ class PcHealthRecord {
       pcId: (json['pc_id'] ?? '').toString(),
       status: (json['status'] ?? 'unknown').toString(),
       lastCheck: DateTime.tryParse((json['last_check'] ?? '').toString()),
-      lastStudentEmail: _nullable(json['last_student_email']),
+      lastDisplayName: _nullable(
+        json['last_display_name'] ?? json['last_student_display_name'],
+      ),
       details: details,
     );
   }

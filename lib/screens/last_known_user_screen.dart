@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/last_known_user_record.dart';
+import '../services/export_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
@@ -58,6 +59,44 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
     });
   }
 
+  Future<void> _exportAuditLog() async {
+    try {
+      final records = await StaffService.instance.listLastKnownUsers();
+      final path = await ExportService.instance.exportCsv(
+        filePrefix: 'syswatch_audit_log',
+        headers: const [
+          'Room',
+          'PC',
+          'Display Name',
+          'Email',
+          'Login',
+          'Logout',
+          'Status',
+          'Source',
+        ],
+        rows: records.map((record) => <Object?>[
+          record.roomName,
+          record.pcId,
+          record.dashboardDisplayName,
+          record.email,
+          formatDateTime(record.loginTime),
+          formatDateTime(record.logoutTime),
+          record.status,
+          record.loginSource,
+        ]).toList(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Audit log exported to $path')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: ${cleanError(error)}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -92,9 +131,8 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
                 return [
                   record.roomName,
                   record.pcId,
-                  record.displayName,
-                  record.email ?? '',
-                  record.studentId ?? '',
+                  record.dashboardDisplayName,
+                  record.email,
                   record.status,
                 ].join(' ').toLowerCase().contains(search);
               }).toList()
@@ -107,7 +145,7 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
                 return const MessageState(
                   icon: Icons.person_pin_circle_outlined,
                   title: 'No matching login records',
-                  message: 'Student login activity will appear after synchronization.',
+                  message: 'Windows login activity will appear after synchronization.',
                 );
               }
 
@@ -144,7 +182,7 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
             cursorColor: _accentAForeground,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              labelText: 'Search room, PC, student, or email',
+              labelText: 'Search room, PC, name, or email',
               labelStyle: TextStyle(color: _subTextColor, fontSize: 13.5),
               prefixIcon: Icon(Icons.search_rounded, color: _subTextColor, size: 20),
               filled: true,
@@ -166,8 +204,25 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
           ),
         ),
         const SizedBox(width: 10),
+        _buildExportButton(),
+        const SizedBox(width: 8),
         _buildRefreshButton(),
       ],
+    );
+  }
+
+  Widget _buildExportButton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _fieldColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _borderColor),
+      ),
+      child: IconButton(
+        tooltip: 'Export audit log to CSV',
+        onPressed: _exportAuditLog,
+        icon: Icon(Icons.download_rounded, color: _accentBForeground, size: 20),
+      ),
     );
   }
 
@@ -188,9 +243,6 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
 
   // ── Record card ──────────────────────────────────────────────────────────
   Widget _buildRecordCard(LastKnownUserRecord record) {
-    final hasEmail = (record.email ?? '').isNotEmpty &&
-        record.email != record.displayName;
-
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -232,25 +284,24 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Last user: ${record.displayName}',
-                  style: TextStyle(color: _textColor.withValues(alpha: 0.85), fontSize: 13),
+                  record.dashboardDisplayName,
+                  style: TextStyle(
+                    color: _textColor.withValues(alpha: 0.90),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                if (hasEmail)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      record.email!,
-                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
+                if (record.email.trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    record.email.trim(),
+                    style: TextStyle(
+                      color: _subTextColor,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                if ((record.studentId ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      'Student ID: ${record.studentId}',
-                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                    ),
-                  ),
+                ],
                 const SizedBox(height: 4),
                 Text(
                   'Login: ${formatDateTime(record.loginTime)}',
@@ -275,7 +326,8 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
   Widget _buildStatusBadge(String status) {
     final active = status.trim().toLowerCase() == 'active' ||
         status.trim().toLowerCase() == 'online' ||
-        status.trim().toLowerCase() == 'logged in';
+        status.trim().toLowerCase() == 'logged in' ||
+        status.trim().toLowerCase() == 'logged_in';
     final color = active ? _accentAForeground : _subTextColor;
 
     return Container(

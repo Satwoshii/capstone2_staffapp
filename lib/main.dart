@@ -18,61 +18,89 @@ Future<void> main() async {
   runApp(StaffAdminApp(startupError: startupError));
 }
 
-class StaffAdminApp extends StatelessWidget {
+class StaffAdminApp extends StatefulWidget {
   final Object? startupError;
 
   const StaffAdminApp({super.key, this.startupError});
 
   @override
+  State<StaffAdminApp> createState() => _StaffAdminAppState();
+}
+
+class _StaffAdminAppState extends State<StaffAdminApp> {
+  late ThemeMode _themeMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _themeMode = ThemeService.instance.themeMode;
+    ThemeService.instance.addListener(_handleThemeChanged);
+  }
+
+  void _handleThemeChanged() {
+    if (!mounted) return;
+
+    final next = ThemeService.instance.themeMode;
+    if (next == _themeMode) return;
+
+    setState(() => _themeMode = next);
+  }
+
+  @override
+  void dispose() {
+    ThemeService.instance.removeListener(_handleThemeChanged);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: ThemeService.instance,
-      builder: (context, _) {
-        return MaterialApp(
-          title: 'Syswatch Admin',
-          debugShowCheckedModeBanner: false,
-          themeMode: ThemeService.instance.themeMode,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFFC0C0C0),
-              brightness: Brightness.light,
-            ),
-            useMaterial3: true,
-            inputDecorationTheme: const InputDecorationTheme(
-              border: OutlineInputBorder(),
-            ),
-            filledButtonTheme: FilledButtonThemeData(
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
+    return MaterialApp(
+      title: 'Syswatch Admin',
+      debugShowCheckedModeBanner: false,
+      themeMode: _themeMode,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFC0C0C0),
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+        inputDecorationTheme: const InputDecorationTheme(
+          border: OutlineInputBorder(),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFFC0C0C0),
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-            inputDecorationTheme: const InputDecorationTheme(
-              border: OutlineInputBorder(),
-            ),
-            filledButtonTheme: FilledButtonThemeData(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFC0C0C0),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
+        ),
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFC0C0C0),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+        inputDecorationTheme: const InputDecorationTheme(
+          border: OutlineInputBorder(),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFC0C0C0),
+            foregroundColor: Colors.black,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
-          home: startupError == null
-              ? const StaffLoginScreen()
-              : _StartupErrorScreen(error: startupError!),
-        );
-      },
+        ),
+      ),
+      home: widget.startupError == null
+          ? const StaffLoginScreen()
+          : _StartupErrorScreen(error: widget.startupError!),
     );
   }
 }

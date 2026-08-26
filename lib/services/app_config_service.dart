@@ -10,7 +10,7 @@ class AppConfigService {
 
   static final AppConfigService instance = AppConfigService._();
 
-  static const String defaultServerUrl = 'http://127.0.0.1/syswatch_api';
+  static const String defaultServerUrl = 'http://SYSWATCH-SERVER/syswatch_api';
 
   File? _file;
   Map<String, dynamic> _values = <String, dynamic>{};
@@ -64,6 +64,21 @@ class AppConfigService {
     if (apiToken.isEmpty || savedUser == null) return false;
     final expiry = tokenExpiresAt;
     return expiry == null || expiry.isAfter(DateTime.now().toUtc());
+  }
+
+  /// Saves an automatically discovered server address. This does not affect
+  /// the current staff session; it only updates the intranet route.
+  Future<void> saveDiscoveredServerUrl(String value) async {
+    final normalized = normalizeServerUrl(value);
+    final uri = Uri.tryParse(normalized);
+    if (uri == null ||
+        !uri.hasScheme ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty) {
+      return;
+    }
+    _values['server_url'] = normalized;
+    await _save();
   }
 
   Future<void> saveServerUrl(String value) async {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'app_config_service.dart';
+import 'server_discovery_service.dart';
 
 class ApiUnavailableException implements Exception {
   final String message;
@@ -70,6 +71,7 @@ class ApiClient {
     Map<String, dynamic>? body,
     Map<String, String>? query,
     required bool authenticated,
+    bool allowRediscovery = true,
   }) async {
     final uri = _buildUri(
       AppConfigService.instance.serverUrl,
@@ -151,13 +153,43 @@ class ApiClient {
     } on ApiRequestException {
       rethrow;
     } on TimeoutException {
+      if (allowRediscovery) {
+        final found = await ServerDiscoveryService.instance.discover(
+          forceLanScan: true,
+        );
+        if (found != null) {
+          return _request(
+            method: method,
+            endpoint: endpoint,
+            body: body,
+            query: query,
+            authenticated: authenticated,
+            allowRediscovery: false,
+          );
+        }
+      }
       throw const ApiUnavailableException(
         'The Syswatch intranet server did not respond in time.',
       );
     } on SocketException {
+      if (allowRediscovery) {
+        final found = await ServerDiscoveryService.instance.discover(
+          forceLanScan: true,
+        );
+        if (found != null) {
+          return _request(
+            method: method,
+            endpoint: endpoint,
+            body: body,
+            query: query,
+            authenticated: authenticated,
+            allowRediscovery: false,
+          );
+        }
+      }
       throw const ApiUnavailableException(
-        'The Syswatch intranet server is unreachable. Check the LAN address, '
-        'Apache, and Windows Firewall.',
+        'The Syswatch intranet server is unreachable. Automatic LAN discovery '
+        'could not find the server. Check Apache and Windows Firewall.',
       );
     } on HandshakeException {
       throw const ApiUnavailableException(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
 import '../models/fault_report.dart';
+import '../services/export_service.dart';
 import '../models/lab_overview.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
@@ -148,7 +149,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   void _refresh() {
-    if (!mounted) return;
+    if (!mounted || _loggingOut) return;
+
     setState(() {
       _future = Future.wait<dynamic>([
         StaffService.instance.teacherOverview(),
@@ -161,13 +163,26 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Future<void> _logout() async {
     if (_loggingOut) return;
+
     setState(() => _loggingOut = true);
-    await StaffService.instance.logout();
+
+    // Stop periodic rebuilds before the Teacher dashboard route is removed.
+    _timer?.cancel();
+    _timer = null;
+
+    try {
+      await StaffService.instance.logout();
+    } catch (_) {
+      // Still return to the local login screen if the server is unavailable.
+    }
+
     if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
+
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
-          (_) => false,
+      (_) => false,
     );
   }
 
@@ -372,6 +387,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           ),
           const SizedBox(width: 8),
           _iconTile(
+            icon: Icons.download_rounded,
+            tooltip: 'Export room reports to CSV',
+            onPressed: _exportTeacherReports,
+          ),
+          const SizedBox(width: 8),
+          _iconTile(
             icon: Icons.refresh_rounded,
             tooltip: 'Refresh dashboard',
             onPressed: _refresh,
@@ -459,6 +480,48 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _exportTeacherReports() async {
+    try {
+      final reports = await StaffService.instance.listTeacherReports();
+      final path = await ExportService.instance.exportCsv(
+        filePrefix: 'syswatch_teacher_reports',
+        headers: const [
+          'Room',
+          'PC',
+          'Issue',
+          'Details',
+          'Severity',
+          'Workflow',
+          'Reported At',
+          'Repaired At',
+          'Technician Notes',
+          'Teacher Notes',
+        ],
+        rows: reports.map((report) => <Object?>[
+          report.roomName,
+          report.pcId,
+          report.issue,
+          report.details,
+          report.severity,
+          report.workflowStatus,
+          formatDateTime(report.createdAt),
+          formatDateTime(report.repairedAt),
+          report.technicianNotes ?? '',
+          report.teacherNotes ?? '',
+        ]).toList(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Teacher reports exported to $path')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: ${cleanError(error)}')),
+      );
+    }
   }
 
   Future<void> _openChat() async {
