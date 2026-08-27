@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/last_known_user_record.dart';
-import '../services/export_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
@@ -57,44 +56,6 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
     setState(() {
       _future = StaffService.instance.listLastKnownUsers();
     });
-  }
-
-  Future<void> _exportAuditLog() async {
-    try {
-      final records = await StaffService.instance.listLastKnownUsers();
-      final path = await ExportService.instance.exportCsv(
-        filePrefix: 'syswatch_audit_log',
-        headers: const [
-          'Room',
-          'PC',
-          'Display Name',
-          'Email',
-          'Login',
-          'Logout',
-          'Status',
-          'Source',
-        ],
-        rows: records.map((record) => <Object?>[
-          record.roomName,
-          record.pcId,
-          record.dashboardDisplayName,
-          record.email,
-          formatDateTime(record.loginTime),
-          formatDateTime(record.logoutTime),
-          record.status,
-          record.loginSource,
-        ]).toList(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Audit log exported to $path')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: ${cleanError(error)}')),
-      );
-    }
   }
 
   @override
@@ -204,25 +165,8 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
           ),
         ),
         const SizedBox(width: 10),
-        _buildExportButton(),
-        const SizedBox(width: 8),
         _buildRefreshButton(),
       ],
-    );
-  }
-
-  Widget _buildExportButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _fieldColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _borderColor),
-      ),
-      child: IconButton(
-        tooltip: 'Export audit log to CSV',
-        onPressed: _exportAuditLog,
-        icon: Icon(Icons.download_rounded, color: _accentBForeground, size: 20),
-      ),
     );
   }
 

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../models/dashboard_summary.dart';
 import '../models/fault_report.dart';
-import '../services/export_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
@@ -66,54 +65,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     });
   }
 
-  Future<void> _exportReports() async {
-    try {
-      final faults = await StaffService.instance.listFaultReports();
-      final path = await ExportService.instance.exportCsv(
-        filePrefix: 'syswatch_fault_reports',
-        headers: const [
-          'Room',
-          'PC',
-          'Workstation ID',
-          'Issue',
-          'Details',
-          'Severity',
-          'Source',
-          'Workflow',
-          'Repaired',
-          'Reported At',
-          'Repaired At',
-          'Technician Notes',
-          'Teacher Notes',
-        ],
-        rows: faults.map((report) => <Object?>[
-          report.roomName,
-          report.pcId,
-          report.workstationId,
-          report.issue,
-          report.details,
-          report.severity,
-          report.source,
-          report.workflowStatus,
-          report.repaired ? 'Yes' : 'No',
-          formatDateTime(report.createdAt),
-          formatDateTime(report.repairedAt),
-          report.technicianNotes ?? '',
-          report.teacherNotes ?? '',
-        ]).toList(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Reports exported to $path')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: ${cleanError(error)}')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<_ReportData>(
@@ -164,8 +115,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       style: TextStyle(color: _subTextColor, fontSize: 13),
                     ),
                   ),
-                  _buildExportButton(),
-                  const SizedBox(width: 8),
                   _buildRefreshButton(),
                 ],
               ),
@@ -234,21 +183,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildExportButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _fieldColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _borderColor),
-      ),
-      child: IconButton(
-        tooltip: 'Export reports to CSV',
-        onPressed: _exportReports,
-        icon: Icon(Icons.download_rounded, color: _accentBForeground, size: 20),
-      ),
     );
   }
 
@@ -400,8 +334,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                 const SizedBox(height: 4),
                 Text(
-                  formatDateTime(report.createdAt),
-                  style: TextStyle(color: _subTextColor, fontSize: 12),
+                  'Reported: ${formatDateTime(report.createdAt)}'
+                  '${report.repairedAt != null ? '\nITSO Fixed: ${formatDateTime(report.repairedAt)}' : ''}'
+                  '${report.teacherApprovedAt != null ? '\nTeacher Verified: ${formatDateTime(report.teacherApprovedAt)}' : ''}',
+                  style: TextStyle(color: _subTextColor, fontSize: 12, height: 1.35),
                 ),
               ],
             ),

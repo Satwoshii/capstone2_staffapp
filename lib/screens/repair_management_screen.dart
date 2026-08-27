@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
 import '../models/fault_report.dart';
-import '../services/export_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
@@ -63,54 +62,6 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
     setState(() {
       _future = StaffService.instance.listFaultReports();
     });
-  }
-
-  Future<void> _exportRepairs() async {
-    try {
-      final reports = await StaffService.instance.listFaultReports();
-      final path = await ExportService.instance.exportCsv(
-        filePrefix: 'syswatch_repairs',
-        headers: const [
-          'Room',
-          'PC',
-          'Workstation ID',
-          'Issue',
-          'Details',
-          'Severity',
-          'Workflow',
-          'Repaired',
-          'Reported At',
-          'Repaired At',
-          'Technician Notes',
-          'Teacher Notes',
-          'Teacher Approved At',
-        ],
-        rows: reports.map((report) => <Object?>[
-          report.roomName,
-          report.pcId,
-          report.workstationId,
-          report.issue,
-          report.details,
-          report.severity,
-          report.workflowStatus,
-          report.repaired ? 'Yes' : 'No',
-          formatDateTime(report.createdAt),
-          formatDateTime(report.repairedAt),
-          report.technicianNotes ?? '',
-          report.teacherNotes ?? '',
-          formatDateTime(report.teacherApprovedAt),
-        ]).toList(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Repair records exported to $path')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: ${cleanError(error)}')),
-      );
-    }
   }
 
   Future<void> _markRepaired(FaultReport report) async {
@@ -425,8 +376,6 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
         const SizedBox(width: 12),
         _buildIncludeRepairedToggle(),
         const SizedBox(width: 10),
-        _buildExportButton(),
-        const SizedBox(width: 8),
         _buildRefreshButton(),
       ],
     );
@@ -470,21 +419,6 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
     );
   }
 
-  Widget _buildExportButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _fieldColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _borderColor),
-      ),
-      child: IconButton(
-        tooltip: 'Export repair records to CSV',
-        onPressed: _exportRepairs,
-        icon: Icon(Icons.download_rounded, color: _accentBForeground, size: 20),
-      ),
-    );
-  }
-
   Widget _buildRefreshButton() {
     return Container(
       decoration: BoxDecoration(
@@ -508,7 +442,10 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
       if (report.details.isNotEmpty) report.details,
       'Severity: ${report.severity.toUpperCase()}',
       'Reported: ${formatDateTime(report.createdAt)}',
-      if (report.repaired) 'Repaired: ${formatDateTime(report.repairedAt)}',
+      if (report.repairedAt != null)
+        'ITSO Fixed: ${formatDateTime(report.repairedAt)}',
+      if (report.teacherApprovedAt != null)
+        'Teacher Verified: ${formatDateTime(report.teacherApprovedAt)}',
       'Workflow: ${report.workflowStatus.replaceAll('_', ' ').toUpperCase()}',
       if ((report.technicianNotes ?? '').isNotEmpty)
         'Action: ${report.technicianNotes}',

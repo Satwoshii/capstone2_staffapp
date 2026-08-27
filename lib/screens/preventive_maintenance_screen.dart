@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/maintenance_record.dart';
-import '../services/export_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
@@ -74,48 +73,6 @@ class _PreventiveMaintenanceScreenState
     setState(() {
       _future = StaffService.instance.listMaintenanceSchedule();
     });
-  }
-
-  Future<void> _exportSchedule() async {
-    try {
-      final records = await StaffService.instance.listMaintenanceSchedule();
-      final path = await ExportService.instance.exportCsv(
-        filePrefix: 'syswatch_maintenance_schedule',
-        headers: const [
-          'Room',
-          'PC',
-          'Workstation ID',
-          'Workstation Status',
-          'Last Maintenance',
-          'Next Due',
-          'Schedule Status',
-          'Days Until Due',
-          'Last Condition',
-          'Last Technician',
-        ],
-        rows: records.map((item) => <Object?>[
-          item.roomName,
-          item.pcId,
-          item.workstationId,
-          item.workstationStatus,
-          formatDateTime(item.lastMaintenanceDate),
-          formatDateTime(item.nextDueDate),
-          item.scheduleStatus,
-          item.daysUntilDue,
-          item.lastOverallCondition ?? '',
-          item.lastTechnicianName ?? '',
-        ]).toList(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Maintenance schedule exported to $path')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: ${cleanError(error)}')),
-      );
-    }
   }
 
   @override
@@ -294,19 +251,6 @@ class _PreventiveMaintenanceScreenState
           _filterChip(filter.key, filter.value),
           const SizedBox(width: 8),
         ],
-        Container(
-          decoration: BoxDecoration(
-            color: _field,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _border),
-          ),
-          child: IconButton(
-            tooltip: 'Export maintenance schedule to CSV',
-            onPressed: _exportSchedule,
-            icon: Icon(Icons.download_rounded, color: _accentBForeground, size: 20),
-          ),
-        ),
-        const SizedBox(width: 8),
         Container(
           decoration: BoxDecoration(
             color: _field,

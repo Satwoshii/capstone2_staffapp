@@ -7,7 +7,6 @@ import 'package:flutter/gestures.dart';
 import '../models/fault_report.dart';
 import '../models/lab_overview.dart';
 import '../models/maintenance_record.dart';
-import '../services/export_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
@@ -82,50 +81,6 @@ class _LabMaintenanceOverviewScreenState
         ),
       );
     });
-  }
-
-  Future<void> _exportMaintenance() async {
-    try {
-      final records = await StaffService.instance.listMaintenanceHistory();
-      final path = await ExportService.instance.exportCsv(
-        filePrefix: 'syswatch_maintenance_history',
-        headers: const [
-          'Room',
-          'PC',
-          'Workstation ID',
-          'Technician',
-          'Maintenance Date',
-          'Next Due Date',
-          'Condition',
-          'Checklist Completed',
-          'Findings',
-          'Actions Taken',
-          'Recommendations',
-        ],
-        rows: records.map((record) => <Object?>[
-          record.roomName,
-          record.pcId,
-          record.workstationId,
-          record.technicianName,
-          formatDateTime(record.maintenanceDate),
-          formatDateTime(record.nextDueDate),
-          record.overallCondition,
-          '${record.completedChecklistItems}/${record.checklist.length}',
-          record.findings,
-          record.actionsTaken,
-          record.recommendations,
-        ]).toList(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Maintenance history exported to $path')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: ${cleanError(error)}')),
-      );
-    }
   }
 
   Color _conditionColor(String value) {
@@ -349,12 +304,6 @@ class _LabMaintenanceOverviewScreenState
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        _outlinedButton(
-          label: 'Export CSV',
-          icon: Icons.download_rounded,
-          onPressed: _exportMaintenance,
         ),
         const SizedBox(width: 8),
         _iconTile(icon: Icons.refresh_rounded, tooltip: 'Refresh', onPressed: _refresh),

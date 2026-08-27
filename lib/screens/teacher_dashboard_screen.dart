@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
 import '../models/fault_report.dart';
-import '../services/export_service.dart';
 import '../models/lab_overview.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
@@ -387,12 +386,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           ),
           const SizedBox(width: 8),
           _iconTile(
-            icon: Icons.download_rounded,
-            tooltip: 'Export room reports to CSV',
-            onPressed: _exportTeacherReports,
-          ),
-          const SizedBox(width: 8),
-          _iconTile(
             icon: Icons.refresh_rounded,
             tooltip: 'Refresh dashboard',
             onPressed: _refresh,
@@ -480,48 +473,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _exportTeacherReports() async {
-    try {
-      final reports = await StaffService.instance.listTeacherReports();
-      final path = await ExportService.instance.exportCsv(
-        filePrefix: 'syswatch_teacher_reports',
-        headers: const [
-          'Room',
-          'PC',
-          'Issue',
-          'Details',
-          'Severity',
-          'Workflow',
-          'Reported At',
-          'Repaired At',
-          'Technician Notes',
-          'Teacher Notes',
-        ],
-        rows: reports.map((report) => <Object?>[
-          report.roomName,
-          report.pcId,
-          report.issue,
-          report.details,
-          report.severity,
-          report.workflowStatus,
-          formatDateTime(report.createdAt),
-          formatDateTime(report.repairedAt),
-          report.technicianNotes ?? '',
-          report.teacherNotes ?? '',
-        ]).toList(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Teacher reports exported to $path')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: ${cleanError(error)}')),
-      );
-    }
   }
 
   Future<void> _openChat() async {
@@ -941,6 +892,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: _sub, fontSize: 12, height: 1.35),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  'Reported: ${formatDateTime(report.createdAt)}'
+                  '${report.repairedAt != null ? '\nITSO Fixed: ${formatDateTime(report.repairedAt)}' : ''}'
+                  '${report.teacherApprovedAt != null ? '\nTeacher Verified: ${formatDateTime(report.teacherApprovedAt)}' : ''}',
+                  style: TextStyle(
+                    color: _sub,
+                    fontSize: 11.2,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Wrap(

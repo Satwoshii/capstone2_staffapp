@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/pc_health_record.dart';
-import '../services/export_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
@@ -59,42 +58,6 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
     setState(() {
       _future = StaffService.instance.listPcHealth();
     });
-  }
-
-  Future<void> _exportStatusReport() async {
-    try {
-      final records = await StaffService.instance.listPcHealth();
-      final path = await ExportService.instance.exportCsv(
-        filePrefix: 'syswatch_pc_status_report',
-        headers: const [
-          'Room',
-          'PC',
-          'Workstation ID',
-          'Status',
-          'Last User',
-          'Last Check',
-          'Details',
-        ],
-        rows: records.map((record) => <Object?>[
-          record.roomName,
-          record.pcId,
-          record.workstationId,
-          record.status,
-          record.lastDisplayName ?? '',
-          formatDateTime(record.lastCheck),
-          readableHealthDetails(record.details),
-        ]).toList(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Status report exported to $path')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: ${cleanError(error)}')),
-      );
-    }
   }
 
   @override
@@ -211,8 +174,6 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
         const SizedBox(width: 12),
         _buildIssuesOnlyToggle(),
         const SizedBox(width: 10),
-        _buildExportButton(),
-        const SizedBox(width: 8),
         _buildRefreshButton(),
       ],
     );
@@ -252,21 +213,6 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildExportButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _fieldColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _borderColor),
-      ),
-      child: IconButton(
-        tooltip: 'Export PC status to CSV',
-        onPressed: _exportStatusReport,
-        icon: Icon(Icons.download_rounded, color: _accentBForeground, size: 20),
       ),
     );
   }
