@@ -520,29 +520,20 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     icon: Icons.grid_view_rounded,
                     title: 'Lab Map',
                     subtitle: 'Select a workstation to view its current condition.',
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final columns = constraints.maxWidth >= 1320
-                            ? 7
-                            : constraints.maxWidth >= 1050
-                            ? 6
-                            : constraints.maxWidth >= 780
-                            ? 4
-                            : 2;
-                        return GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: columns,
-                            mainAxisSpacing: 12,
-                            crossAxisSpacing: 12,
-                            childAspectRatio: 1.28,
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        for (final pc in room.workstations)
+                          SizedBox(
+                            width: 140,
+                            height: 140,
+                            child: _pcTile(
+                              pc,
+                              reports.where((r) => r.workstationId == pc.workstationId && !r.repaired).toList(),
+                            ),
                           ),
-                          itemCount: room.workstations.length,
-                          itemBuilder: (context, index) =>
-                              _pcTile(room.workstations[index]),
-                        );
-                      },
+                      ],
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -554,7 +545,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         : '${openReports.length} unresolved report${openReports.length == 1 ? '' : 's'} need attention.',
                     trailing: _gradientButton(
                       label: 'Report Damaged PC',
-                      icon: Icons.report_problem_rounded,
+                      icon: Icons.support_agent_rounded,
                       onPressed: room.workstations.isEmpty
                           ? null
                           : () => _showCreateReport(room),
@@ -781,22 +772,21 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
-  Widget _pcTile(LabWorkstation pc) {
-    final color = _conditionColor(pc.maintenanceColor);
+  Widget _pcTile(LabWorkstation pc, List<FaultReport> pcReports) {
+    final maintenanceColor = _conditionColor(pc.maintenanceColor);
+    final statusColor = pc.isOnline ? maintenanceColor : Colors.blueGrey;
     final connectionColor = pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _showPcDetails(pc),
+        onTap: () => _showPcDetails(pc, pcReports),
         child: Ink(
           decoration: BoxDecoration(
-            color: pc.isOnline 
-                ? _accentColor.withValues(alpha: _dark ? 0.08 : 0.04)
-                : _field.withValues(alpha: 0.82),
+            color: statusColor.withValues(alpha: _dark ? 0.08 : 0.04),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.48), width: 1.2),
+            border: Border.all(color: statusColor.withValues(alpha: 0.48), width: 1.2),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -807,10 +797,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.10),
+                    color: statusColor.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Icon(Icons.computer_rounded, color: color, size: 24),
+                  child: Icon(Icons.computer_rounded, color: statusColor, size: 24),
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -1215,7 +1205,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 6),
             contentPadding: const EdgeInsets.fromLTRB(22, 6, 22, 8),
             actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
-            title: _dialogTitle('Report Damaged PC', Icons.report_problem_rounded),
+            title: _dialogTitle('Report Damaged PC', Icons.support_agent_rounded),
             content: SizedBox(
               width: 520,
               child: Form(
@@ -1450,7 +1440,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
-  void _showPcDetails(LabWorkstation pc) {
+  void _showPcDetails(LabWorkstation pc, List<FaultReport> pcReports) {
     final color = _conditionColor(pc.maintenanceColor);
     final connectionColor = pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey;
 
@@ -1488,6 +1478,105 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       );
     }
 
+    Widget expandableProblems(String label, IconData icon, List<FaultReport> reports, Color groupColor) {
+      return Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          leading: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: groupColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 16, color: groupColor),
+          ),
+          title: Text(
+            label,
+            style: TextStyle(color: _sub, fontSize: 12.5),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${reports.length}',
+                style: TextStyle(
+                  color: reports.isEmpty ? _sub : groupColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.expand_more_rounded, size: 18, color: _sub),
+            ],
+          ),
+          children: reports.isEmpty
+              ? [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(44, 4, 12, 12),
+              child: Text(
+                'No issues found',
+                style: TextStyle(color: _sub, fontSize: 12, fontStyle: FontStyle.italic),
+              ),
+            )
+          ]
+              : reports.map((r) => Padding(
+            padding: const EdgeInsets.fromLTRB(44, 4, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: _severityColor(r.severity),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        r.issue,
+                        style: TextStyle(
+                          color: _text,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (r.details.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 14),
+                    child: Text(
+                      r.details,
+                      style: TextStyle(color: _sub, fontSize: 11.5, height: 1.3),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          )).toList(),
+        ),
+      );
+    }
+
+    final majorReports = pcReports.where((r) {
+      final s = r.severity.toLowerCase();
+      return s == 'high' || s == 'critical' || s == 'emergency';
+    }).toList();
+    
+    final activeReports = pcReports.where((r) {
+      final s = r.severity.toLowerCase();
+      return s != 'high' && s != 'critical' && s != 'emergency';
+    }).toList();
+
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1521,32 +1610,34 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         ),
         content: SizedBox(
           width: 360,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              row(
-                Icons.wifi_rounded,
-                'Connection',
-                pc.connectionStatus.toUpperCase(),
-                valueColor: connectionColor,
-              ),
-              Divider(color: _border, height: 4),
-              row(Icons.info_outline_rounded, 'Device status', pc.deviceStatus),
-              Divider(color: _border, height: 4),
-              row(
-                Icons.report_outlined,
-                'Active problems',
-                '${pc.activeProblemCount}',
-                valueColor: pc.activeProblemCount > 0 ? color : null,
-              ),
-              Divider(color: _border, height: 4),
-              row(
-                Icons.priority_high_rounded,
-                'Major problems',
-                '${pc.majorProblemCount}',
-                valueColor: pc.majorProblemCount > 0 ? const Color(0xFFE53935) : null,
-              ),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                row(
+                  Icons.wifi_rounded,
+                  'Connection',
+                  pc.connectionStatus.toUpperCase(),
+                  valueColor: connectionColor,
+                ),
+                Divider(color: _border, height: 4),
+                row(Icons.info_outline_rounded, 'Device status', pc.deviceStatus),
+                Divider(color: _border, height: 4),
+                expandableProblems(
+                  'Active problems',
+                  Icons.report_outlined,
+                  activeReports,
+                  pc.activeProblemCount > 0 ? color : _accentAForeground,
+                ),
+                Divider(color: _border, height: 4),
+                expandableProblems(
+                  'Major problems',
+                  Icons.priority_high_rounded,
+                  majorReports,
+                  const Color(0xFFE53935),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [

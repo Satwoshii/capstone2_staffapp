@@ -666,9 +666,15 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                   color: _accentAForeground,
                   backgroundColor: _cardColor,
                   onRefresh: () async => _refresh(),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                     itemCount: users.length,
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 280,
+                      mainAxisExtent: 185,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
                     itemBuilder: (context, index) {
                       return _buildUserTile(users[index]);
                     },
@@ -705,9 +711,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               Expanded(
                 child: Text(
                   'Accounts are saved in the central MariaDB database. '
-                      '${widget.currentUser.isSuperAdmin ? 'Super Admin can manage students, administrators, and one shared Teacher account per room. ' : 'Administrators can manage student accounts. '}'
-                      'Active students become available to registered Student PCs.',
-                  style: TextStyle(color: _subTextColor, fontSize: 12.5, height: 1.4),
+                      '${widget.currentUser.isSuperAdmin ? 'Super Admin can manage all roles. ' : 'Administrators manage students. '}'
+                      'Active students can log into Student PCs.',
+                  style: TextStyle(color: _subTextColor, fontSize: 12, height: 1.4),
                 ),
               ),
               const SizedBox(width: 12),
@@ -722,30 +728,27 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  style: TextStyle(color: _textColor, fontSize: 14),
+                  style: TextStyle(color: _textColor, fontSize: 13.5),
                   cursorColor: _accentAForeground,
                   decoration: _fieldDecoration(
-                    'Search name, email, or Student ID',
+                    'Search name or email',
                     Icons.search,
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               SizedBox(
-                width: 180,
+                width: 160,
                 child: DropdownButtonFormField<String>(
                   value: _roleFilter,
                   dropdownColor: _cardColor,
-                  style: TextStyle(color: _textColor, fontSize: 14),
+                  style: TextStyle(color: _textColor, fontSize: 13.5),
                   icon: Icon(Icons.expand_more, color: _subTextColor),
                   decoration: _fieldDecoration('Role', Icons.filter_list),
                   items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All roles')),
-                    DropdownMenuItem(
-                      value: 'super_admin',
-                      child: Text('Super Admin'),
-                    ),
+                    DropdownMenuItem(value: 'all', child: Text('All')),
+                    DropdownMenuItem(value: 'super_admin', child: Text('Super')),
                     DropdownMenuItem(value: 'student', child: Text('Student')),
                     DropdownMenuItem(value: 'admin', child: Text('Admin')),
                     DropdownMenuItem(value: 'teacher', child: Text('Teacher')),
@@ -766,20 +769,20 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
 
   Widget _buildRefreshButton() {
     return SizedBox(
-      width: 48,
-      height: 48,
+      width: 44,
+      height: 44,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: _fieldColor,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _borderColor),
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             onTap: _refresh,
-            child: Icon(Icons.refresh, color: _subTextColor, size: 21),
+            child: Icon(Icons.refresh, color: _subTextColor, size: 20),
           ),
         ),
       ),
@@ -791,37 +794,30 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
     final fgColor = _isDarkMode ? Colors.black : Colors.white;
 
     return SizedBox(
-      height: 48,
+      height: 44,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: bgColor.withValues(alpha: 0.2),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             onTap: _showAddAccountDialog,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.person_add, color: fgColor, size: 19),
+                  Icon(Icons.person_add, color: fgColor, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    'Add Account',
+                    'Add',
                     style: TextStyle(
                       color: fgColor,
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      fontSize: 13.5,
                     ),
                   ),
                 ],
@@ -840,126 +836,123 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
     final canChangeActive = _canChangeActive(user);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _cardColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: user.isSuperAdmin
               ? _accentB.withValues(alpha: 0.35)
-              : (user.active ? _accentAForeground.withValues(alpha: 0.2) : _borderColor),
+              : (user.active ? _accentAForeground.withValues(alpha: 0.15) : _borderColor),
         ),
+        boxShadow: [
+          if (!_isDarkMode)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+        ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: user.active 
-                  ? (_isDarkMode ? _accentAForeground.withValues(alpha: 0.12) : _accentAForeground.withValues(alpha: 0.08))
-                  : _fieldColor,
-              border: Border.all(
-                color: user.active
-                    ? _accentAForeground.withValues(alpha: 0.35)
-                    : _borderColor,
-                width: 1.2,
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: user.active
+                      ? _accentAForeground.withValues(alpha: 0.1)
+                      : _fieldColor,
+                ),
+                child: Icon(
+                  user.isSuperAdmin ? Icons.verified_user : Icons.person,
+                  color: user.active ? _accentAForeground : _subTextColor,
+                  size: 18,
+                ),
               ),
-            ),
-            child: user.active
-                ? Icon(
-              user.isSuperAdmin ? Icons.verified_user : Icons.person,
-              color: _accentAForeground,
-              size: 22,
-            )
-                : Icon(Icons.person_off, color: _subTextColor, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 4,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       user.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: _textColor,
                         fontWeight: FontWeight.w700,
-                        fontSize: 15.5,
+                        fontSize: 13.5,
                       ),
                     ),
-                    if (isCurrent) _buildTag('You', _accentAForeground),
-                    if (user.isSuperAdmin)
-                      _buildTag('SUPER ADMIN', _accentBForeground, icon: Icons.shield),
+                    Text(
+                      user.roleLabel,
+                      style: TextStyle(
+                        color: _subTextColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  user.email,
-                  style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                ),
-                Text(
-                  'Role: ${user.roleLabel}',
-                  style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                ),
-                if (user.isStudent && (user.studentId ?? '').isNotEmpty)
-                  Text(
-                    'Student ID: ${user.studentId}',
-                    style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                  ),
-                if (user.isTeacher &&
-                    (user.assignedRoomName ?? '').isNotEmpty)
-                  Text(
-                    'Assigned room: ${user.assignedRoomName}',
-                    style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                  ),
-                Text(
-                  'Created: ${formatDateTime(user.createdAt)}',
-                  style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                ),
-              ],
-            ),
+              ),
+              if (isCurrent) _buildTag('YOU', _accentAForeground),
+            ],
           ),
-          const SizedBox(width: 8),
-          Column(
-            mainAxisSize: MainAxisSize.min,
+          const SizedBox(height: 12),
+          Text(
+            user.email,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: _subTextColor, fontSize: 12),
+          ),
+          if (user.isStudent && (user.studentId ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'ID: ${user.studentId}',
+                style: TextStyle(color: _subTextColor, fontSize: 11.5),
+              ),
+            ),
+          if (user.isTeacher && (user.assignedRoomName ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'Room: ${user.assignedRoomName}',
+                style: TextStyle(color: _subTextColor, fontSize: 11.5),
+              ),
+            ),
+          const Spacer(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildIconAction(
                 icon: Icons.lock_reset,
-                tooltip: canResetPassword
-                    ? 'Reset password'
-                    : 'Only the Super Admin can reset this password',
-                onPressed: canResetPassword
-                    ? () => _showResetPasswordDialog(user)
-                    : null,
+                tooltip: canResetPassword ? 'Reset Password' : 'Locked',
+                onPressed: canResetPassword ? () => _showResetPasswordDialog(user) : null,
               ),
-              const SizedBox(height: 8),
-              busy
-                  ? SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: _accentAForeground,
+              if (busy)
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _accentAForeground,
+                  ),
+                )
+              else
+                _ThemedSwitch(
+                  value: user.active,
+                  onChanged: canChangeActive ? (_) => _toggleActive(user) : (_) {},
+                  disabled: !canChangeActive,
+                  accentColor: _accentColor,
+                  fieldColor: _fieldColor,
+                  borderColor: _borderColor,
                 ),
-              )
-                  : _ThemedSwitch(
-                value: user.active,
-                onChanged: canChangeActive
-                    ? (_) => _toggleActive(user)
-                    : (_) {},
-                disabled: !canChangeActive,
-                accentColor: _accentColor,
-                fieldColor: _fieldColor,
-                borderColor: _borderColor,
-              ),
             ],
           ),
         ],

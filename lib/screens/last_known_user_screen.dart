@@ -113,15 +113,18 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
               return RefreshIndicator(
                 onRefresh: () async => _refresh(),
                 color: _accentAForeground,
-                child: ListView.builder(
+                child: GridView.builder(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
                   itemCount: records.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 320,
+                    mainAxisExtent: 210,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
                   itemBuilder: (context, index) {
                     final record = records[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _buildRecordCard(record),
-                    );
+                    return _buildRecordCard(record);
                   },
                 ),
               );
@@ -188,80 +191,113 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
   // ── Record card ──────────────────────────────────────────────────────────
   Widget _buildRecordCard(LastKnownUserRecord record) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: _cardColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _accentA.withValues(alpha: 0.16),
-            ),
-            child: Icon(Icons.person_pin_circle_rounded, color: _accentAForeground, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _accentA.withValues(alpha: 0.16),
+                ),
+                child: Icon(Icons.person_pin_circle_rounded, color: _accentAForeground, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        '${record.roomName} · ${record.pcId}',
-                        style: TextStyle(
-                          color: _textColor,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    Text(
+                      'Room ${record.roomName}',
+                      style: TextStyle(
+                        color: _textColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    _buildStatusBadge(record.status),
+                    Text(
+                      'PC ID: ${record.pcId}',
+                      style: TextStyle(
+                        color: _subTextColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  record.dashboardDisplayName,
-                  style: TextStyle(
-                    color: _textColor.withValues(alpha: 0.90),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              _buildStatusBadge(record.status),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            record.dashboardDisplayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _textColor,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (record.email.trim().isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              record.email.trim(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: _subTextColor,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+          const Spacer(),
+          Divider(color: _borderColor, height: 20),
+          Row(
+            children: [
+              Icon(Icons.login_rounded, size: 14, color: _accentAForeground),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  formatDateTime(record.loginTime),
+                  style: TextStyle(color: _subTextColor, fontSize: 11.5),
                 ),
-                if (record.email.trim().isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    record.email.trim(),
-                    style: TextStyle(
-                      color: _subTextColor,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
+              ),
+            ],
+          ),
+          if (record.logoutTime != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.logout_rounded, size: 14, color: Colors.redAccent.withOpacity(0.7)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      formatDateTime(record.logoutTime),
+                      style: TextStyle(color: _subTextColor, fontSize: 11.5),
                     ),
                   ),
                 ],
-                const SizedBox(height: 4),
-                Text(
-                  'Login: ${formatDateTime(record.loginTime)}',
-                  style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                ),
-                if (record.logoutTime != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      'Logout: ${formatDateTime(record.logoutTime)}',
-                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                    ),
-                  ),
-              ],
+              ),
             ),
-          ),
         ],
       ),
     );

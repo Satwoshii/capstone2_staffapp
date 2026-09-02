@@ -143,17 +143,17 @@ String readableHealthDetails(dynamic value) {
     if (peripherals.isNotEmpty) peripherals.join('  •  '),
   ];
 
+  final severity = _cleanScalar(fields['severity']);
+  if (severity.isNotEmpty) {
+    lines.add('Severity: ${_title(severity)}');
+  }
+
   final issues = _healthIssues(fields);
   lines.add(
     issues.isEmpty
         ? 'Issues: None detected'
         : 'Issues: ${issues.join('; ')}',
   );
-
-  final severity = _cleanScalar(fields['severity']);
-  if (severity.isNotEmpty) {
-    lines.add('Severity: ${_title(severity)}');
-  }
 
   // If this was a map but not a recognized hardware payload, preserve the
   // generic display instead of returning only "Issues: None detected".
@@ -193,12 +193,14 @@ String readableHealthIssueSummary(dynamic value) {
     issuesText = 'Issues: ${issues.join('; ')}';
   }
 
-  final lines = <String>[issuesText];
+  final lines = <String>[];
 
   final severity = _cleanScalar(fields['severity']);
   if (severity.isNotEmpty) {
-    lines.add('Severity: ${_title(severity)}');
+    lines.add('Status: ${_title(severity)}');
   }
+
+  lines.add(issuesText);
 
   return lines.join('\n');
 }

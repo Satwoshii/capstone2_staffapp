@@ -620,6 +620,12 @@ class _RoomPcStatusScreenState extends State<RoomPcStatusScreen> {
             style: baseStyle.copyWith(fontWeight: FontWeight.w900),
           ));
           spans.add(TextSpan(text: line.substring(10)));
+        } else if (line.startsWith('Status:')) {
+          spans.add(TextSpan(
+            text: 'Status: ',
+            style: baseStyle.copyWith(fontWeight: FontWeight.w900),
+          ));
+          spans.add(TextSpan(text: line.substring(8)));
         } else {
           spans.add(TextSpan(text: line));
         }

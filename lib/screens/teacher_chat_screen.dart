@@ -138,8 +138,31 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
             child: Column(
               children: [
                 _topBar(),
-                Expanded(child: _body()),
-                _composer(),
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.all(_dark ? 0 : 24),
+                    decoration: BoxDecoration(
+                      color: _dark ? Colors.transparent : _card,
+                      borderRadius: BorderRadius.circular(_dark ? 0 : 24),
+                      border: _dark ? null : Border.all(color: _border),
+                      boxShadow: [
+                        if (!_dark)
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 30,
+                            offset: const Offset(0, 12),
+                          ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        Expanded(child: _body()),
+                        _composer(),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

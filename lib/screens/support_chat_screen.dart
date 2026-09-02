@@ -393,8 +393,22 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           ),
           Container(width: 1, color: _borderColor),
           Expanded(
-            child: ColoredBox(
-              color: _bgColor,
+            child: Container(
+              margin: EdgeInsets.all(_isDarkMode ? 0 : 24),
+              decoration: BoxDecoration(
+                color: _isDarkMode ? Colors.transparent : _cardColor,
+                borderRadius: BorderRadius.circular(_isDarkMode ? 0 : 24),
+                border: _isDarkMode ? null : Border.all(color: _borderColor),
+                boxShadow: [
+                  if (!_isDarkMode)
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 30,
+                      offset: const Offset(0, 12),
+                    ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
               child: _buildConversationDetail(),
             ),
           ),
@@ -945,17 +959,18 @@ class _CategoryBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDarkMode ? accentA : accentB;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: isDarkMode ? accentA.withValues(alpha: 0.12) : accentB.withValues(alpha: 0.08),
-        border: Border.all(color: accentA.withValues(alpha: 0.35), width: 1.2),
+        border: Border.all(color: accentColor.withValues(alpha: 0.35), width: 1.2),
       ),
       child: Icon(
         icon,
-        color: isDarkMode ? accentA : accentB,
+        color: accentColor,
         size: size * 0.5,
       ),
     );
@@ -1106,6 +1121,20 @@ class _AdminMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMine = message.isAdmin;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    final bubbleColor = isMine 
+        ? (isDarkMode ? accentA : accentB) 
+        : fieldColor;
+        
+    final bubbleTextColor = isMine 
+        ? (isDarkMode ? Colors.black : Colors.white) 
+        : textColor;
+        
+    final bubbleSubTextColor = isMine 
+        ? (isDarkMode ? Colors.black.withValues(alpha: 0.55) : Colors.white.withValues(alpha: 0.7)) 
+        : subTextColor;
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -1113,16 +1142,20 @@ class _AdminMessageBubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isMine 
-              ? (Theme.of(context).brightness == Brightness.dark 
-                  ? accentA.withValues(alpha: 0.12) 
-                  : accentB.withValues(alpha: 0.08)) 
-              : fieldColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isMine ? accentA.withValues(alpha: 0.35) : Colors.transparent,
-            width: 1,
+          color: bubbleColor,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isMine ? 20 : 6),
+            bottomRight: Radius.circular(isMine ? 6 : 20),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDarkMode ? 0.15 : 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1132,13 +1165,19 @@ class _AdminMessageBubble extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 12.5,
-                color: isMine ? accentBForeground : textColor,
+                color: isMine 
+                    ? (isDarkMode ? Colors.black.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.9)) 
+                    : accentAForeground,
               ),
             ),
             const SizedBox(height: 4),
             SelectableText(
               message.message,
-              style: TextStyle(color: textColor, fontSize: 14),
+              style: TextStyle(
+                color: bubbleTextColor,
+                fontSize: 14.5,
+                height: 1.35,
+              ),
             ),
             const SizedBox(height: 6),
             Row(
@@ -1146,14 +1185,14 @@ class _AdminMessageBubble extends StatelessWidget {
               children: [
                 Text(
                   _timeText(message.createdAt),
-                  style: TextStyle(color: subTextColor, fontSize: 11),
+                  style: TextStyle(color: bubbleSubTextColor, fontSize: 10.5),
                 ),
                 if (isMine) ...[
                   const SizedBox(width: 6),
                   Icon(
                     message.read ? Icons.done_all : Icons.done,
                     size: 14,
-                    color: message.read ? accentAForeground : subTextColor,
+                    color: isDarkMode ? Colors.black.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.6),
                   ),
                 ],
               ],
