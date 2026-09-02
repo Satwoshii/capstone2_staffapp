@@ -659,7 +659,10 @@ class _LabMaintenanceOverviewScreenState
           title: '${report.pcId} · ${report.issue}',
           subtitle:
           '${report.severity.toUpperCase()} · '
-              '${report.workflowStatus.replaceAll('_', ' ').toUpperCase()}',
+              '${report.workflowStatus.replaceAll('_', ' ').toUpperCase()}'
+              '${report.acceptedByName != null ? '\nAccepted: ${report.acceptedByName} · ${formatDateTime(report.acceptedAt)}' : ''}'
+              '${report.handledByName != null ? '\nHandled: ${report.handledByName} · ${formatDateTime(report.handledAt)}' : ''}'
+              '${report.completedByName != null ? '\nCompleted: ${report.completedByName} · ${formatDateTime(report.completedAt)}' : ''}',
         );
       }).toList(),
     );

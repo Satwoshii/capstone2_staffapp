@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import '../models/app_user.dart';
 import '../models/dashboard_summary.dart';
 import '../models/fault_report.dart';
@@ -12,6 +15,8 @@ import '../models/teacher_chat.dart';
 import 'api_client.dart';
 import 'api_endpoints.dart';
 import 'app_config_service.dart';
+import 'teacher_startup_service.dart';
+import 'teacher_windows_session_service.dart';
 
 class StaffService {
   StaffService._();
@@ -48,12 +53,28 @@ class StaffService {
     }
     validatePasswordLength(password);
 
+    // Read the already authenticated Windows identity. These are non-secret
+    // account/session details only; Syswatch never reads the Windows password
+    // or PIN. A verified Teacher login uses these fields to link the Windows
+    // account so future Windows logins can be recorded automatically.
+    final windowsAccount =
+        await TeacherWindowsSessionService.instance.currentAccount();
+    final windowsPayload =
+        TeacherWindowsSessionService.instance.windowsIdentityPayload() ??
+            <String, dynamic>{
+              'computer_name': Platform.localHostname,
+              'windows_username': Platform.environment['USERNAME'] ?? '',
+            };
+
     final response = await ApiClient.instance.postJson(
       ApiEndpoints.staffLogin,
       authenticated: false,
       body: {
         'email': cleanEmail,
         'password': password,
+        ...windowsPayload,
+        if (windowsAccount != null)
+          'computer_name': windowsAccount.computerName,
       },
     );
 
@@ -82,6 +103,28 @@ class StaffService {
       apiToken: token,
       expiresAt: response['token_expires_at']?.toString(),
     );
+
+    if (user.isTeacher) {
+      // A successful Teacher password login is the only time the server
+      // creates/rotates this per-Windows-profile auto-login secret. Future
+      // launches can then open the Teacher dashboard automatically without
+      // trusting a spoofable Windows username by itself.
+      final autoLoginSecret =
+          (response['teacher_auto_login_secret'] ?? '').toString().trim();
+      if (autoLoginSecret.isNotEmpty) {
+        await AppConfigService.instance
+            .saveTeacherAutoLoginSecret(autoLoginSecret);
+      }
+      // After the first trusted Teacher login, future Windows sign-ins on this
+      // profile can be recorded automatically without waiting for the Teacher
+      // to re-enter the session details manually.
+      await TeacherStartupService.instance.ensureEnabled();
+      unawaited(
+        TeacherWindowsSessionService.instance
+            .ensureRecordedAfterTeacherLogin(),
+      );
+    }
+
     return user;
   }
 
@@ -213,6 +256,17 @@ class StaffService {
     );
   }
 
+  Future<void> acceptReport(String reportId) async {
+    await ApiClient.instance.postJson(
+      ApiEndpoints.acceptReport,
+      body: {'report_id': reportId},
+    );
+  }
+
+  Future<void> heartbeatStaffSession() async {
+    await ApiClient.instance.postJson(ApiEndpoints.staffSessionHeartbeat);
+  }
+
   Future<List<LastKnownUserRecord>> listLastKnownUsers() async {
     final response = await ApiClient.instance.getJson(
       ApiEndpoints.lastKnownUsers,
@@ -283,13 +337,13 @@ class StaffService {
     return _mapList(response['reports'], FaultReport.fromJson);
   }
 
-  Future<void> createTeacherReport({
+  Future<String> createTeacherReport({
     required String workstationId,
     required String issue,
     required String details,
     required String severity,
   }) async {
-    await ApiClient.instance.postJson(
+    final response = await ApiClient.instance.postJson(
       ApiEndpoints.teacherCreateReport,
       body: {
         'workstation_id': workstationId,
@@ -298,6 +352,9 @@ class StaffService {
         'severity': severity,
       },
     );
+    final reportId = (response['report_id'] ?? '').toString();
+    if (reportId.isEmpty) throw Exception('The server did not return the report id.');
+    return reportId;
   }
 
   Future<void> forwardTeacherReport({
@@ -466,6 +523,135 @@ class StaffService {
       ApiEndpoints.supportMarkRead,
       body: {'conversation_id': conversationId},
     );
+  }
+
+  Future<void> uploadReportAttachment({
+    required String reportId,
+    required String attachmentType,
+    required File image,
+  }) async {
+    await ApiClient.instance.postMultipartFile(
+      ApiEndpoints.attachmentUpload,
+      fileField: 'image',
+      file: image,
+      fields: {
+        'report_id': reportId,
+        'attachment_type': attachmentType,
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> listReportAttachments(String reportId) async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.attachmentList,
+      query: {'report_id': reportId},
+    );
+    return _rawMapList(response['attachments']);
+  }
+
+  Future<File> downloadReportAttachment({
+    required String attachmentId,
+    required String originalFileName,
+  }) {
+    final safeName = originalFileName.trim().isEmpty
+        ? 'syswatch_evidence_$attachmentId.jpg'
+        : originalFileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    return ApiClient.instance.downloadToDownloads(
+      ApiEndpoints.attachmentDownload,
+      query: {'id': attachmentId},
+      fallbackFileName: safeName,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> listWorkstationInventory({String? roomName}) async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.workstationInventory,
+      query: roomName == null || roomName.trim().isEmpty ? null : {'room_name': roomName.trim()},
+    );
+    return _rawMapList(response['records']);
+  }
+
+  Future<List<Map<String, dynamic>>> listSoftwareCompliance({String? roomName}) async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.softwareCompliance,
+      query: roomName == null || roomName.trim().isEmpty ? null : {'room_name': roomName.trim()},
+    );
+    return _rawMapList(response['records']);
+  }
+
+  Future<List<Map<String, dynamic>>> listRequiredSoftware({String? roomName}) async {
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.requiredSoftware,
+      query: roomName == null || roomName.trim().isEmpty ? null : {'room_name': roomName.trim()},
+    );
+    return _rawMapList(response['required_software']);
+  }
+
+  Future<void> saveRequiredSoftware({
+    required String roomName,
+    required String softwareName,
+    String publisher = '',
+    String minimumVersion = '',
+    String matchPattern = '',
+  }) async {
+    await ApiClient.instance.postJson(ApiEndpoints.requiredSoftware, body: {
+      'action': 'save',
+      'room_name': roomName.trim(),
+      'software_name': softwareName.trim(),
+      'publisher': publisher.trim(),
+      'minimum_version': minimumVersion.trim(),
+      'match_pattern': matchPattern.trim(),
+      'active': true,
+    });
+  }
+
+  Future<void> deleteRequiredSoftware(int id) async {
+    await ApiClient.instance.postJson(ApiEndpoints.requiredSoftware, body: {'action': 'delete', 'id': id});
+  }
+
+  Future<void> manuallyVerifySoftware({
+    required String workstationId,
+    required int requiredSoftwareId,
+    String notes = '',
+  }) async {
+    await ApiClient.instance.postJson(ApiEndpoints.requiredSoftware, body: {
+      'action': 'manual_verify',
+      'workstation_id': workstationId,
+      'required_software_id': requiredSoftwareId,
+      'notes': notes.trim(),
+    });
+  }
+
+  Future<File> exportRecords({
+    required String type,
+    required String format,
+    DateTime? dateFrom,
+    DateTime? dateTo,
+    String? roomName,
+  }) {
+    final query = <String, String>{
+      'type': type,
+      'format': format,
+      if (dateFrom != null)
+        'date_from': DateTime(dateFrom.year, dateFrom.month, dateFrom.day)
+            .toUtc()
+            .toIso8601String(),
+      if (dateTo != null)
+        'date_to': DateTime(dateTo.year, dateTo.month, dateTo.day, 23, 59, 59)
+            .toUtc()
+            .toIso8601String(),
+      if (roomName != null && roomName.trim().isNotEmpty) 'room_name': roomName.trim(),
+    };
+    return ApiClient.instance.downloadToDownloads(
+      ApiEndpoints.exportRecords,
+      query: query,
+      fallbackFileName: 'syswatch_${type}_${DateTime.now().millisecondsSinceEpoch}.$format',
+    );
+  }
+
+  List<Map<String, dynamic>> _rawMapList(dynamic raw) {
+    if (raw is! List) return <Map<String, dynamic>>[];
+    return raw.whereType<Map>().map((item) => item.map((key, value) => MapEntry(key.toString(), value))).toList();
   }
 
   List<T> _mapList<T>(

@@ -18,11 +18,24 @@ class ApiEndpoints {
   static const String pcHealth = 'staff/pc_health.php';
   static const String faultReports = 'staff/fault_reports.php';
   static const String markRepaired = 'staff/mark_repaired.php';
+  static const String acceptReport = 'staff/accept_report.php';
   static const String lastKnownUsers = 'staff/last_known_users.php';
   static const String maintenanceSchedule = 'staff/maintenance_schedule.php';
   static const String maintenanceHistory = 'staff/maintenance_history.php';
   static const String completeMaintenance = 'staff/complete_maintenance.php';
   static const String labOverview = 'staff/lab_overview.php';
+  static const String workstationInventory = 'staff/workstation_inventory.php';
+  static const String softwareCompliance = 'staff/software_compliance.php';
+  static const String requiredSoftware = 'staff/required_software.php';
+  static const String exportRecords = 'staff/export.php';
+  static const String staffSessionHeartbeat = 'staff_sessions/heartbeat.php';
+  static const String teacherWindowsRecord = 'staff_sessions/windows_record.php';
+  static const String teacherWindowsAutoLogin =
+      'staff_sessions/windows_auto_login.php';
+  static const String teacherWindowsHeartbeat = 'staff_sessions/windows_heartbeat.php';
+  static const String attachmentUpload = 'attachments/upload.php';
+  static const String attachmentList = 'attachments/list.php';
+  static const String attachmentDownload = 'attachments/download.php';
 
   static const String teacherOverview = 'teacher/overview.php';
   static const String teacherReports = 'teacher/reports.php';

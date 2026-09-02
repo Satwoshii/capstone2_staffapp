@@ -30,6 +30,7 @@ class _PreventiveMaintenanceScreenState
     'storage_space_checked': 'Available storage checked',
     'os_updates_checked': 'Operating system updates checked',
     'antivirus_scan_checked': 'Security/antivirus scan completed',
+    'software_compliance_checked': 'Required software compliance checked',
   };
 
   final _searchController = TextEditingController();
@@ -99,7 +100,13 @@ class _PreventiveMaintenanceScreenState
         final all = snapshot.data ?? const <MaintenanceSchedule>[];
         final query = _searchController.text.trim().toLowerCase();
         final filtered = all.where((item) {
-          if (_filter != 'all' && item.scheduleStatus != _filter) return false;
+          if (_filter != 'all') {
+            if (_filter == 'up_to_date') {
+              if (!item.isUpToDate) return false;
+            } else if (item.scheduleStatus != _filter) {
+              return false;
+            }
+          }
           if (query.isEmpty) return true;
           return '${item.roomName} ${item.pcId} ${item.workstationId}'
               .toLowerCase()
@@ -163,7 +170,7 @@ class _PreventiveMaintenanceScreenState
         const SizedBox(width: 10),
         _summaryTile('Overdue', overdue, Icons.warning_amber_rounded, _red),
         const SizedBox(width: 10),
-        _summaryTile('Due in 30 days', dueSoon, Icons.schedule_rounded, _amber),
+        _summaryTile('Due in 14 days', dueSoon, Icons.schedule_rounded, _amber),
         const SizedBox(width: 10),
         _summaryTile('Up to date', upToDate, Icons.verified_rounded, _accentAForeground),
       ],
@@ -334,6 +341,17 @@ class _PreventiveMaintenanceScreenState
                       : 'Last: ${_dateOnly(item.lastMaintenanceDate)} · ${item.lastTechnicianName ?? 'Staff'}',
                   style: TextStyle(color: _sub, fontSize: 12.5),
                 ),
+                if (item.softwareIssueCount > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${item.softwareIssueCount} required software item${item.softwareIssueCount == 1 ? '' : 's'} need attention',
+                    style: const TextStyle(
+                      color: Colors.orange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -389,7 +407,7 @@ class _PreventiveMaintenanceScreenState
     } else if (item.isDueSoon) {
       label = item.daysUntilDue <= 0 ? 'Due today' : 'Due in ${item.daysUntilDue} day(s)';
     } else {
-      label = 'Up to date';
+      label = item.scheduleStatus == 'scheduled' ? 'Scheduled' : 'Up to date';
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),

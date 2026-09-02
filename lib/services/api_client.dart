@@ -65,6 +65,94 @@ class ApiClient {
     );
   }
 
+  Future<Map<String, dynamic>> postMultipartFile(
+    String endpoint, {
+    required String fileField,
+    required File file,
+    Map<String, String>? fields,
+    bool authenticated = true,
+  }) async {
+    final uri = _buildUri(AppConfigService.instance.serverUrl, endpoint, null);
+    final client = HttpClient()..connectionTimeout = _connectTimeout;
+    try {
+      final request = await client.postUrl(uri).timeout(_connectTimeout);
+      final boundary = '----syswatch${DateTime.now().microsecondsSinceEpoch}';
+      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      request.headers.set(HttpHeaders.contentTypeHeader, 'multipart/form-data; boundary=$boundary');
+      request.headers.set('X-Syswatch-Client', 'staff-app');
+      if (authenticated) {
+        final token = AppConfigService.instance.apiToken;
+        if (token.isEmpty) {
+          throw const ApiRequestException(statusCode: 401, code: 'missing_local_session', message: 'Sign in again to continue.');
+        }
+        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+        request.headers.set('X-Syswatch-User-Token', token);
+      }
+      for (final entry in (fields ?? const <String, String>{}).entries) {
+        request.write('--$boundary\r\n');
+        request.write('Content-Disposition: form-data; name=\"${entry.key}\"\r\n\r\n');
+        request.write('${entry.value}\r\n');
+      }
+      final name = file.uri.pathSegments.isEmpty ? 'image.jpg' : file.uri.pathSegments.last;
+      final mime = name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      request.write('--$boundary\r\n');
+      request.write('Content-Disposition: form-data; name=\"$fileField\"; filename=\"$name\"\r\n');
+      request.write('Content-Type: $mime\r\n\r\n');
+      await request.addStream(file.openRead());
+      request.write('\r\n--$boundary--\r\n');
+      final response = await request.close().timeout(_requestTimeout);
+      final raw = await utf8.decoder.bind(response).join();
+      final decoded = _decodeResponse(raw);
+      if (response.statusCode < 200 || response.statusCode >= 300 || decoded['success'] == false) {
+        throw ApiRequestException(
+          statusCode: response.statusCode,
+          message: _messageFromResponse(decoded, fallback: 'Upload failed (HTTP ${response.statusCode}).'),
+          code: decoded['code']?.toString(), response: decoded,
+        );
+      }
+      return decoded;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<File> downloadToDownloads(
+    String endpoint, {
+    Map<String, String>? query,
+    required String fallbackFileName,
+  }) async {
+    final uri = _buildUri(AppConfigService.instance.serverUrl, endpoint, query);
+    final client = HttpClient()..connectionTimeout = _connectTimeout;
+    try {
+      final request = await client.getUrl(uri).timeout(_connectTimeout);
+      final token = AppConfigService.instance.apiToken;
+      if (token.isEmpty) throw const ApiRequestException(statusCode: 401, message: 'Sign in again to continue.');
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      request.headers.set('X-Syswatch-User-Token', token);
+      request.headers.set('X-Syswatch-Client', 'staff-app');
+      final response = await request.close().timeout(const Duration(seconds: 60));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final raw = await utf8.decoder.bind(response).join();
+        Map<String, dynamic> decoded = <String, dynamic>{};
+        try { decoded = _decodeResponse(raw); } catch (_) {}
+        throw ApiRequestException(statusCode: response.statusCode, message: _messageFromResponse(decoded, fallback: 'Export failed (HTTP ${response.statusCode}).'));
+      }
+      var fileName = fallbackFileName;
+      final disposition = response.headers.value('content-disposition') ?? '';
+      final match = RegExp(r'filename=\"?([^\";]+)').firstMatch(disposition);
+      if (match != null && match.group(1)!.trim().isNotEmpty) fileName = match.group(1)!.trim();
+      final userProfile = Platform.environment['USERPROFILE'] ?? Directory.current.path;
+      final downloads = Directory('$userProfile${Platform.pathSeparator}Downloads');
+      await downloads.create(recursive: true);
+      final file = File('${downloads.path}${Platform.pathSeparator}$fileName');
+      final sink = file.openWrite();
+      await response.pipe(sink);
+      return file;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   Future<Map<String, dynamic>> _request({
     required String method,
     required String endpoint,

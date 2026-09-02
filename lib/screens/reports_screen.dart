@@ -624,7 +624,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
           const Spacer(),
           Text(
-            'Reported: ${formatDateTime(report.createdAt)}',
+            'Reported: ${formatDateTime(report.createdAt)}'
+            '${report.acceptedByName != null ? '\nAccepted by: ${report.acceptedByName} · ${formatDateTime(report.acceptedAt)}' : ''}'
+            '${report.handledByName != null ? '\nHandled by: ${report.handledByName} · ${formatDateTime(report.handledAt)}' : ''}'
+            '${report.completedByName != null ? '\nCompleted by: ${report.completedByName} · ${formatDateTime(report.completedAt)}' : ''}',
             style: TextStyle(color: _subTextColor, fontSize: 11),
           ),
           const SizedBox(height: 12),

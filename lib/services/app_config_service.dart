@@ -44,6 +44,13 @@ class AppConfigService {
 
   String get apiToken => (_values['api_token'] ?? '').toString();
 
+  /// Long-lived random secret created only after a successful Teacher
+  /// Syswatch credential login. It is stored in this Windows user's app-data
+  /// folder and is used to prove future automatic Teacher logins. It is not a
+  /// Windows password/PIN and is never shown in the UI.
+  String get teacherAutoLoginSecret =>
+      (_values['teacher_auto_login_secret'] ?? '').toString();
+
   DateTime? get tokenExpiresAt {
     final raw = (_values['token_expires_at'] ?? '').toString();
     return raw.isEmpty ? null : DateTime.tryParse(raw);
@@ -105,6 +112,18 @@ class AppConfigService {
     _values['user'] = user.toJson();
     _values['api_token'] = apiToken;
     _values['token_expires_at'] = expiresAt ?? '';
+    await _save();
+  }
+
+  Future<void> saveTeacherAutoLoginSecret(String value) async {
+    final secret = value.trim();
+    if (secret.isEmpty) return;
+    _values['teacher_auto_login_secret'] = secret;
+    await _save();
+  }
+
+  Future<void> clearTeacherAutoLoginSecret() async {
+    _values.remove('teacher_auto_login_secret');
     await _save();
   }
 

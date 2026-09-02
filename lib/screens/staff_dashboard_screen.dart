@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
@@ -8,6 +10,8 @@ import 'account_management_screen.dart';
 import 'admin_teacher_chat_screen.dart';
 import 'last_known_user_screen.dart';
 import 'lab_maintenance_overview_screen.dart';
+import 'inventory_software_screen.dart';
+import 'export_records_screen.dart';
 import 'pc_health_reports_screen.dart';
 import 'repair_management_screen.dart';
 import 'reports_screen.dart';
@@ -28,6 +32,7 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
   late final List<_MenuItem> _menuItems;
   int _selectedIndex = 0;
   bool _loggingOut = false;
+  Timer? _sessionHeartbeatTimer;
 
   // ── Palette (matches StudentLoginScreen / StaffLoginScreen) ────────────────
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
@@ -53,6 +58,11 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(StaffService.instance.heartbeatStaffSession().catchError((_) {}));
+    _sessionHeartbeatTimer = Timer.periodic(
+      const Duration(minutes: 2),
+      (_) => unawaited(StaffService.instance.heartbeatStaffSession().catchError((_) {})),
+    );
     _menuItems = [
       const _MenuItem('Status Report', Icons.monitor_heart_rounded, PcHealthReportsScreen()),
       _MenuItem(
@@ -72,6 +82,16 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       ),
       const _MenuItem('Reports', Icons.analytics_rounded, ReportsScreen()),
       const _MenuItem(
+        'Inventory & Software',
+        Icons.inventory_2_rounded,
+        InventorySoftwareScreen(),
+      ),
+      const _MenuItem(
+        'Export Records',
+        Icons.file_download_rounded,
+        ExportRecordsScreen(),
+      ),
+      const _MenuItem(
         'ITSO Support',
         Icons.support_agent_rounded,
         SupportChatScreen(),
@@ -88,6 +108,12 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         AccountManagementScreen(currentUser: widget.user),
       ),
     ];
+  }
+
+  @override
+  void dispose() {
+    _sessionHeartbeatTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _logout() async {

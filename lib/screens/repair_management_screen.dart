@@ -64,6 +64,27 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
     });
   }
 
+  Future<void> _acceptReport(FaultReport report) async {
+    if (_updating.contains(report.id)) return;
+    setState(() => _updating.add(report.id));
+    try {
+      await StaffService.instance.acceptReport(report.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report accepted. Repair is now in progress.')),
+      );
+      _refresh();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(cleanError(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updating.remove(report.id));
+    }
+  }
+
   Future<void> _markRepaired(FaultReport report) async {
     final formKey = GlobalKey<FormState>();
     String notes = '';
@@ -434,6 +455,78 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
     );
   }
 
+  Future<void> _showProofImages(FaultReport report) async {
+    try {
+      final attachments = await StaffService.instance.listReportAttachments(report.id);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Proof images · ${report.roomName} ${report.pcId}'),
+          content: SizedBox(
+            width: 520,
+            child: attachments.isEmpty
+                ? const Text('No proof images have been attached to this report.')
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: attachments.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, index) {
+                      final item = attachments[index];
+                      final type = (item['attachment_type'] ?? 'evidence')
+                          .toString()
+                          .replaceAll('_', ' ');
+                      final name = (item['original_filename'] ?? 'image').toString();
+                      return ListTile(
+                        leading: const Icon(Icons.image_outlined),
+                        title: Text(name),
+                        subtitle: Text(
+                          '${type.toUpperCase()} · Uploaded by ${item['uploaded_by_name'] ?? 'Unknown'} · ${formatDateTime(DateTime.tryParse((item['created_at'] ?? '').toString()))}',
+                        ),
+                        trailing: IconButton(
+                          tooltip: 'Download image',
+                          icon: const Icon(Icons.download_rounded),
+                          onPressed: () async {
+                            try {
+                              final file = await StaffService.instance.downloadReportAttachment(
+                                attachmentId: (item['id'] ?? '').toString(),
+                                originalFileName: name,
+                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Saved proof image to ${file.path}')),
+                                );
+                              }
+                            } catch (error) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(cleanError(error))),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(cleanError(error))),
+        );
+      }
+    }
+  }
+
   // ── Report card ──────────────────────────────────────────────────────────
   Widget _buildReportCard(FaultReport report, bool updating) {
     final color = report.repaired ? _repairedColor : _severityColor(report.severity);
@@ -442,6 +535,12 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
       if (report.details.isNotEmpty) report.details,
       'Severity: ${report.severity.toUpperCase()}',
       'Reported: ${formatDateTime(report.createdAt)}',
+      if (report.acceptedByName != null)
+        'Accepted by: ${report.acceptedByName} · ${formatDateTime(report.acceptedAt)}',
+      if (report.handledByName != null)
+        'Handled by: ${report.handledByName} · ${formatDateTime(report.handledAt)}',
+      if (report.completedByName != null)
+        'Completed by: ${report.completedByName} · ${formatDateTime(report.completedAt)}',
       if (report.repairedAt != null)
         'ITSO Fixed: ${formatDateTime(report.repairedAt)}',
       if (report.teacherApprovedAt != null)
@@ -491,6 +590,12 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                 Text(
                   lines.join('\n'),
                   style: TextStyle(color: _subTextColor, fontSize: 12.5, height: 1.4),
+                ),
+                const SizedBox(height: 6),
+                TextButton.icon(
+                  onPressed: () => _showProofImages(report),
+                  icon: const Icon(Icons.photo_library_outlined, size: 17),
+                  label: const Text('Proof images'),
                 ),
               ],
             ),
@@ -545,6 +650,15 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
         'Teacher Review',
         const Color(0xFFF7B84F),
         Icons.rate_review_rounded,
+      );
+    }
+    if (report.workflowStatus == 'sent_to_itso' ||
+        report.workflowStatus == 'reopened') {
+      return _primaryButton(
+        label: 'Accept / Start',
+        icon: Icons.play_arrow_rounded,
+        loading: updating,
+        onPressed: updating ? null : () => _acceptReport(report),
       );
     }
     return _primaryButton(

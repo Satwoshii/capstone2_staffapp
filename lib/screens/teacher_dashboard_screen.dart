@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -6,6 +7,7 @@ import '../models/app_user.dart';
 import '../models/fault_report.dart';
 import '../models/lab_overview.dart';
 import '../services/staff_service.dart';
+import '../services/native_image_picker_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/theme_toggle_button.dart';
 import 'staff_login_screen.dart';
@@ -149,6 +151,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   void _refresh() {
     if (!mounted || _loggingOut) return;
+    unawaited(StaffService.instance.heartbeatStaffSession().catchError((_) {}));
 
     setState(() {
       _future = Future.wait<dynamic>([
@@ -900,6 +903,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 const SizedBox(height: 7),
                 Text(
                   'Reported: ${formatDateTime(report.createdAt)}'
+                  '${report.acceptedByName != null ? '\nAccepted by ITSO: ${report.acceptedByName} · ${formatDateTime(report.acceptedAt)}' : ''}'
+                  '${report.handledByName != null ? '\nHandled by ITSO: ${report.handledByName} · ${formatDateTime(report.handledAt)}' : ''}'
+                  '${report.completedByName != null ? '\nCompleted by ITSO: ${report.completedByName} · ${formatDateTime(report.completedAt)}' : ''}'
                   '${report.repairedAt != null ? '\nITSO Fixed: ${formatDateTime(report.repairedAt)}' : ''}'
                   '${report.teacherApprovedAt != null ? '\nTeacher Verified: ${formatDateTime(report.teacherApprovedAt)}' : ''}',
                   style: TextStyle(
@@ -1169,6 +1175,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     String? selectedProblem;
     String? severity;
     String details = '';
+    File? proofImage;
     final key = GlobalKey<FormState>();
     bool saving = false;
 
@@ -1183,12 +1190,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             if (selectedProblem == null || selectedSeverity == null) return;
             setDialogState(() => saving = true);
             try {
-              await StaffService.instance.createTeacherReport(
+              final reportId = await StaffService.instance.createTeacherReport(
                 workstationId: workstationId,
                 issue: selectedProblem!.trim(),
                 details: details.trim(),
                 severity: selectedSeverity,
               );
+              if (proofImage != null) {
+                await StaffService.instance.uploadReportAttachment(
+                  reportId: reportId,
+                  attachmentType: 'report_evidence',
+                  image: proofImage!,
+                );
+              }
               if (!dialogContext.mounted || !mounted) return;
               Navigator.pop(dialogContext);
               _message('Damaged PC reported to ITSO.');
@@ -1205,7 +1219,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 6),
             contentPadding: const EdgeInsets.fromLTRB(22, 6, 22, 8),
             actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
-            title: _dialogTitle('Report Damaged PC', Icons.support_agent_rounded),
+            title: _dialogTitle('Report Damaged PC', Icons.report_problem_rounded),
             content: SizedBox(
               width: 520,
               child: Form(
@@ -1287,6 +1301,37 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                             : null,
                       ),
                       const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              proofImage == null
+                                  ? 'Proof image: optional JPG/PNG (max 8 MB)'
+                                  : 'Proof: ${proofImage!.uri.pathSegments.last}',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: _sub, fontSize: 12.5),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          OutlinedButton.icon(
+                            onPressed: saving
+                                ? null
+                                : () async {
+                                    try {
+                                      final picked = await NativeImagePickerService.instance.pickJpgOrPng();
+                                      if (picked != null && dialogContext.mounted) {
+                                        setDialogState(() => proofImage = picked);
+                                      }
+                                    } catch (error) {
+                                      if (mounted) _message(cleanError(error));
+                                    }
+                                  },
+                            icon: const Icon(Icons.image_outlined, size: 18),
+                            label: Text(proofImage == null ? 'Attach Image' : 'Change'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
                       InputDecorator(
                         decoration: _dialogFieldDecoration(
                           label: 'Severity',
@@ -1350,6 +1395,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         notes: notes,
       ),
       reportId: report.id,
+      attachmentType: 'report_evidence',
     );
   }
 
@@ -1365,6 +1411,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         notes: notes,
       ),
       reportId: report.id,
+      attachmentType: approved ? 'repair_verification' : 'still_damaged',
     );
   }
 
@@ -1375,10 +1422,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     required String actionLabel,
     required Future<void> Function(String notes) onSave,
     required String reportId,
+    required String attachmentType,
   }) async {
     final key = GlobalKey<FormState>();
     bool saving = false;
     String notes = '';
+    File? proofImage;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -1390,6 +1439,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             setState(() => _busyReports.add(reportId));
             try {
               await onSave(notes.trim());
+              if (proofImage != null) {
+                await StaffService.instance.uploadReportAttachment(
+                  reportId: reportId,
+                  attachmentType: attachmentType,
+                  image: proofImage!,
+                );
+              }
               if (!dialogContext.mounted || !mounted) return;
               Navigator.pop(dialogContext);
               _message('Report updated successfully.');
@@ -1413,16 +1469,51 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               width: 460,
               child: Form(
                 key: key,
-                child: TextFormField(
-                  enabled: !saving,
-                  maxLines: 4,
-                  style: TextStyle(color: _text, fontSize: 14),
-                  cursorColor: _accentAForeground,
-                  decoration: _dialogFieldDecoration(label: label),
-                  onChanged: (value) => notes = value,
-                  validator: (value) => (value ?? '').trim().isEmpty
-                      ? 'Enter notes before continuing.'
-                      : null,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      enabled: !saving,
+                      maxLines: 4,
+                      style: TextStyle(color: _text, fontSize: 14),
+                      cursorColor: _accentAForeground,
+                      decoration: _dialogFieldDecoration(label: label),
+                      onChanged: (value) => notes = value,
+                      validator: (value) => (value ?? '').trim().isEmpty
+                          ? 'Enter notes before continuing.'
+                          : null,
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            proofImage == null
+                                ? 'Optional proof image (JPG/PNG)'
+                                : proofImage!.uri.pathSegments.last,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: _sub, fontSize: 12.5),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: saving
+                              ? null
+                              : () async {
+                                  try {
+                                    final picked = await NativeImagePickerService.instance.pickJpgOrPng();
+                                    if (picked != null && dialogContext.mounted) {
+                                      setDialogState(() => proofImage = picked);
+                                    }
+                                  } catch (error) {
+                                    if (mounted) _message(cleanError(error));
+                                  }
+                                },
+                          icon: const Icon(Icons.image_outlined, size: 18),
+                          label: Text(proofImage == null ? 'Attach' : 'Change'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),

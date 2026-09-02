@@ -26,9 +26,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
   final _serverController = TextEditingController();
 
   bool _loading = false;
-  bool _testing = false;
   bool _obscurePassword = true;
-  bool _showServerSettings = false;
   String? _errorMessage;
   String? _serverStatus;
 
@@ -122,38 +120,6 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
 
   Future<void> _saveServer() async {
     await AppConfigService.instance.saveServerUrl(_serverController.text);
-  }
-
-  Future<void> _testServer() async {
-    if (_testing) return;
-    setState(() {
-      _testing = true;
-      _serverStatus = null;
-      _errorMessage = null;
-    });
-
-    try {
-      final found = await ServerDiscoveryService.instance.discover(
-        forceLanScan: true,
-      );
-      if (found != null) {
-        _serverController.text = found;
-      } else {
-        await _saveServer();
-      }
-      final result = await StaffService.instance.health();
-      if (!mounted) return;
-      setState(() {
-        _serverStatus = result['database'] == 'online'
-            ? 'Server and database are online.'
-            : 'Server responded successfully.';
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _errorMessage = cleanError(error));
-    } finally {
-      if (mounted) setState(() => _testing = false);
-    }
   }
 
   Future<void> _login() async {
@@ -419,50 +385,10 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
             ),
             const SizedBox(height: 8),
 
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _loading
-                    ? null
-                    : () => setState(() => _showServerSettings = !_showServerSettings),
-                style: TextButton.styleFrom(foregroundColor: _accentBForeground),
-                icon: const Icon(Icons.lan_outlined, size: 18),
-                label: Text(
-                  _showServerSettings ? 'Hide server settings' : 'Server settings',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ),
-            ),
-
-            if (_showServerSettings) ...[
-              const SizedBox(height: 4),
-              TextFormField(
-                controller: _serverController,
-                enabled: !_loading && !_testing,
-                style: TextStyle(color: _textColor, fontSize: 14),
-                cursorColor: _accentAForeground,
-                decoration: _fieldDecoration(
-                  'Syswatch Server LAN Address',
-                  Icons.dns_outlined,
-                  hintText: 'http://192.168.1.10/syswatch_api',
-                ),
-                validator: (value) {
-                  if (!_showServerSettings) return null;
-                  final text = (value ?? '').trim();
-                  if (text.isEmpty) return 'Server address is required.';
-                  final uri = Uri.tryParse(text);
-                  if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
-                    return 'Enter a complete http:// address.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: _buildTestConnectionButton(),
-              ),
-            ],
+            // Server discovery remains automatic. The LAN address is deliberately
+            // not rendered on this shared pre-login screen because Teachers also
+            // authenticate here. This prevents disclosure of the Syswatch server
+            // IP/address before the user's authorized role is known.
 
             if (_serverStatus != null) ...[
               const SizedBox(height: 14),
@@ -488,28 +414,6 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTestConnectionButton() {
-    return OutlinedButton.icon(
-      onPressed: _testing ? null : _testServer,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _accentBForeground,
-        side: BorderSide(color: _accentBForeground.withValues(alpha: 0.5)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      icon: _testing
-          ? SizedBox(
-        width: 16,
-        height: 16,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(_accentBForeground),
-        ),
-      )
-          : const Icon(Icons.network_check, size: 18),
-      label: Text(_testing ? 'Testing…' : 'Test Connection'),
     );
   }
 

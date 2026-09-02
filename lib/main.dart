@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'models/app_user.dart';
 import 'screens/staff_login_screen.dart';
+import 'screens/teacher_dashboard_screen.dart';
 import 'services/app_config_service.dart';
 import 'services/theme_service.dart';
+import 'services/teacher_windows_session_service.dart';
 import 'widgets/theme_toggle_button.dart';
 
 Future<void> main() async {
@@ -15,13 +20,34 @@ Future<void> main() async {
     startupError = error;
   }
 
-  runApp(StaffAdminApp(startupError: startupError));
+  AppUser? automaticTeacher;
+  if (startupError == null) {
+    automaticTeacher = await TeacherWindowsSessionService.instance
+        .tryAutomaticTeacherLogin();
+  }
+
+  runApp(StaffAdminApp(
+    startupError: startupError,
+    automaticTeacher: automaticTeacher,
+  ));
+
+  // If this Windows profile has not been securely linked for dashboard
+  // auto-login yet, keep the background recorder active. A first successful
+  // Teacher password login will create the secure link for future launches.
+  if (startupError == null && automaticTeacher == null) {
+    unawaited(TeacherWindowsSessionService.instance.start());
+  }
 }
 
 class StaffAdminApp extends StatefulWidget {
   final Object? startupError;
+  final AppUser? automaticTeacher;
 
-  const StaffAdminApp({super.key, this.startupError});
+  const StaffAdminApp({
+    super.key,
+    this.startupError,
+    this.automaticTeacher,
+  });
 
   @override
   State<StaffAdminApp> createState() => _StaffAdminAppState();
@@ -112,9 +138,11 @@ class _StaffAdminAppState extends State<StaffAdminApp> {
           ),
         ),
       ),
-      home: widget.startupError == null
-          ? const StaffLoginScreen()
-          : _StartupErrorScreen(error: widget.startupError!),
+      home: widget.startupError != null
+          ? _StartupErrorScreen(error: widget.startupError!)
+          : widget.automaticTeacher != null
+              ? TeacherDashboardScreen(user: widget.automaticTeacher!)
+              : const StaffLoginScreen(),
     );
   }
 }

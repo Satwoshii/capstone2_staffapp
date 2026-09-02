@@ -11,6 +11,7 @@ class MaintenanceSchedule {
   final int daysUntilDue;
   final String? lastOverallCondition;
   final String? lastTechnicianName;
+  final int softwareIssueCount;
 
   const MaintenanceSchedule({
     required this.workstationId,
@@ -25,11 +26,12 @@ class MaintenanceSchedule {
     required this.daysUntilDue,
     this.lastOverallCondition,
     this.lastTechnicianName,
+    this.softwareIssueCount = 0,
   });
 
   bool get isOverdue => scheduleStatus == 'overdue';
   bool get isDueSoon => scheduleStatus == 'due_soon';
-  bool get isUpToDate => scheduleStatus == 'up_to_date';
+  bool get isUpToDate => scheduleStatus == 'up_to_date' || scheduleStatus == 'scheduled';
 
   factory MaintenanceSchedule.fromJson(Map<String, dynamic> json) {
     return MaintenanceSchedule(
@@ -45,6 +47,7 @@ class MaintenanceSchedule {
       daysUntilDue: int.tryParse((json['days_until_due'] ?? '0').toString()) ?? 0,
       lastOverallCondition: _nullable(json['last_overall_condition']),
       lastTechnicianName: _nullable(json['last_technician_name']),
+      softwareIssueCount: int.tryParse((json['software_issue_count'] ?? '0').toString()) ?? 0,
     );
   }
 }

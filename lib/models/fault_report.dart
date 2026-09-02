@@ -16,6 +16,12 @@ class FaultReport {
   final String? technicianNotes;
   final String? teacherNotes;
   final DateTime? teacherApprovedAt;
+  final String? acceptedByName;
+  final DateTime? acceptedAt;
+  final String? handledByName;
+  final DateTime? handledAt;
+  final String? completedByName;
+  final DateTime? completedAt;
 
   const FaultReport({
     required this.id,
@@ -35,6 +41,12 @@ class FaultReport {
     this.technicianNotes,
     this.teacherNotes,
     this.teacherApprovedAt,
+    this.acceptedByName,
+    this.acceptedAt,
+    this.handledByName,
+    this.handledAt,
+    this.completedByName,
+    this.completedAt,
   });
 
   factory FaultReport.fromJson(Map<String, dynamic> json) {
@@ -60,6 +72,12 @@ class FaultReport {
       teacherApprovedAt: DateTime.tryParse(
         (json['teacher_approved_at'] ?? '').toString(),
       ),
+      acceptedByName: _nullable(json['accepted_by_name']),
+      acceptedAt: DateTime.tryParse((json['accepted_at'] ?? '').toString()),
+      handledByName: _nullable(json['handled_by_name']),
+      handledAt: DateTime.tryParse((json['handled_at'] ?? '').toString()),
+      completedByName: _nullable(json['completed_by_name']),
+      completedAt: DateTime.tryParse((json['completed_at'] ?? '').toString()),
     );
   }
 
