@@ -182,11 +182,18 @@ String readableHealthIssueSummary(dynamic value) {
   };
 
   final issues = _healthIssues(fields);
-  final lines = <String>[
-    issues.isEmpty
-        ? 'Issues: None detected'
-        : 'Issues: ${issues.join('; ')}',
-  ];
+  String issuesText;
+  if (issues.isEmpty) {
+    issuesText = 'Issues: None detected';
+  } else if (issues.length >= 3) {
+    final count = issues.length - 2;
+    issuesText =
+        'Issues: ${issues.take(2).join('; ')}... ($count more ${count == 1 ? 'issue' : 'issues'})';
+  } else {
+    issuesText = 'Issues: ${issues.join('; ')}';
+  }
+
+  final lines = <String>[issuesText];
 
   final severity = _cleanScalar(fields['severity']);
   if (severity.isNotEmpty) {

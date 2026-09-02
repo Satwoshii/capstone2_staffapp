@@ -37,10 +37,10 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   Color get _sub => _dark ? Colors.white54 : Colors.black54;
   Color get _border =>
       _dark ? Colors.white.withValues(alpha: 0.08) : Colors.black12;
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
   Color get _accentColor => _dark ? _accentA : _accentB;
-  Color get _accentAForeground => _dark ? _accentA : const Color(0xFF606060);
+  Color get _accentAForeground => _dark ? _accentA : _accentB;
   Color get _errorColor => const Color(0xFFFF6B6B);
   Color get _online => const Color(0xFF22A06B);
 

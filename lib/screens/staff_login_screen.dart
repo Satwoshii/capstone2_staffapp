@@ -45,10 +45,10 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
   Color get _accentAForeground =>
-      _isDarkMode ? _accentA : const Color(0xFF606060);
+      _isDarkMode ? _accentA : _accentB;
   Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
@@ -105,7 +105,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       if (!mounted) return;
       if (found != null) {
         _serverController.text = found;
-        setState(() => _serverStatus = 'Connected automatically to Syswatch server.');
+        setState(() => _serverStatus = 'Connected automatically to SysWatch server.');
       } else {
         setState(() {
           _serverStatus = 'Automatic discovery is waiting for the server. '
@@ -234,7 +234,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: _accentA, width: 1.5),
+        borderSide: BorderSide(color: _accentAForeground, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -287,7 +287,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
           Positioned(
             top: -80,
             left: -80,
-            child: _orb(280, _accentA.withValues(alpha: _isDarkMode ? 0.12 : 0.09)),
+            child: _orb(280, _accentAForeground.withValues(alpha: _isDarkMode ? 0.12 : 0.09)),
           ),
           Positioned(
             bottom: -100,
@@ -470,7 +470,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
                 message: _serverStatus!,
                 accent: _accentAForeground,
                 textColor: _textColor,
-                background: _accentA.withValues(alpha: _isDarkMode ? 0.12 : 0.1),
+                background: _accentAForeground.withValues(alpha: _isDarkMode ? 0.12 : 0.1),
               ),
             ],
             if (_errorMessage != null) ...[
@@ -594,11 +594,11 @@ class _StaffLoginScreenState extends State<StaffLoginScreen>
       height: 76,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: _isDarkMode ? _accentA.withValues(alpha: 0.12) : _accentB.withValues(alpha: 0.08),
-        border: Border.all(color: _accentA.withValues(alpha: 0.45), width: 1.5),
+        color: _isDarkMode ? _accentAForeground.withValues(alpha: 0.12) : _accentAForeground.withValues(alpha: 0.08),
+        border: Border.all(color: _accentAForeground.withValues(alpha: 0.45), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: _accentA.withValues(alpha: 0.2),
+            color: _accentAForeground.withValues(alpha: 0.2),
             blurRadius: 24,
             spreadRadius: 2,
           ),

@@ -55,13 +55,20 @@ class _StaffAdminAppState extends State<StaffAdminApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Syswatch Admin',
+      title: 'SysWatch Admin',
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFC0C0C0),
+          seedColor: const Color(0xFF003366),
+          primary: const Color(0xFF003366),
+          secondary: const Color(0xFFFFD700),
           brightness: Brightness.light,
+        ),
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: Color(0xFF003366),
+          selectionColor: Color(0x33003366),
+          selectionHandleColor: Color(0xFF003366),
         ),
         useMaterial3: true,
         inputDecorationTheme: const InputDecorationTheme(
@@ -69,7 +76,7 @@ class _StaffAdminAppState extends State<StaffAdminApp> {
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
-            backgroundColor: Colors.black,
+            backgroundColor: const Color(0xFF003366),
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             shape: RoundedRectangleBorder(
@@ -80,8 +87,15 @@ class _StaffAdminAppState extends State<StaffAdminApp> {
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFC0C0C0),
+          seedColor: const Color(0xFF003366),
+          primary: const Color(0xFFFFD700),
+          secondary: const Color(0xFF003366),
           brightness: Brightness.dark,
+        ),
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: Color(0xFFFFD700),
+          selectionColor: Color(0x33FFD700),
+          selectionHandleColor: Color(0xFFFFD700),
         ),
         useMaterial3: true,
         inputDecorationTheme: const InputDecorationTheme(
@@ -89,7 +103,7 @@ class _StaffAdminAppState extends State<StaffAdminApp> {
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFC0C0C0),
+            backgroundColor: const Color(0xFFFFD700),
             foregroundColor: Colors.black,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             shape: RoundedRectangleBorder(

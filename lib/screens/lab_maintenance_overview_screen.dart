@@ -25,6 +25,7 @@ class _LabMaintenanceOverviewScreenState
   Future<_LabDashboardData>? _future;
   Timer? _timer;
   String? _selectedRoomName;
+  String? _pcFilter;
   late final ScrollController _horizontalScrollController;
 
   // ── Palette (matches the rest of the app) ───────────────────────────────
@@ -36,10 +37,10 @@ class _LabMaintenanceOverviewScreenState
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
   Color get _accentAForeground =>
-      _isDarkMode ? _accentA : const Color(0xFF606060);
+      _isDarkMode ? _accentA : _accentB;
   Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
@@ -50,6 +51,7 @@ class _LabMaintenanceOverviewScreenState
   Color get _errorColor => const Color(0xFFFF6B6B);
   Color get _warnColor => const Color(0xFFF9A825);
   Color get _okColor => const Color(0xFF22A06B);
+  Color get _indigo => const Color(0xFF5C6BC0);
 
   @override
   void initState() {
@@ -145,7 +147,29 @@ class _LabMaintenanceOverviewScreenState
           (data?.maintenanceHistory ?? const <MaintenanceRecord>[])
               .where((record) => record.roomName == selected.roomName)
               .toList();
-          return _content(rooms, selected, reports, maintenanceHistory);
+
+          final filteredWorkstations = _pcFilter == null
+              ? selected.workstations
+              : selected.workstations.where((pc) {
+                  switch (_pcFilter) {
+                    case 'online':
+                      return pc.isOnline;
+                    case 'offline':
+                      return !pc.isOnline;
+                    case 'warning':
+                      return pc.activeProblemCount > 0 &&
+                          pc.activeProblemCount <= 3 &&
+                          pc.majorProblemCount == 0;
+                    case 'damaged':
+                      return pc.activeProblemCount > 3 || pc.majorProblemCount > 0;
+                    case 'problems':
+                      return pc.activeProblemCount > 0;
+                    default:
+                      return true;
+                  }
+                }).toList();
+
+          return _content(rooms, selected, reports, maintenanceHistory, filteredWorkstations);
         },
       ),
     );
@@ -156,6 +180,7 @@ class _LabMaintenanceOverviewScreenState
       LabOverview selected,
       List<FaultReport> reports,
       List<MaintenanceRecord> maintenanceHistory,
+      List<LabWorkstation> filteredWorkstations,
       ) {
     return RefreshIndicator(
       color: _accentAForeground,
@@ -230,6 +255,22 @@ class _LabMaintenanceOverviewScreenState
           LayoutBuilder(
             builder: (context, constraints) {
               final columns = constraints.maxWidth >= 1050 ? 8 : 6;
+              if (filteredWorkstations.isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  alignment: Alignment.center,
+                  child: Column(
+                    children: [
+                      Icon(Icons.filter_list_off_rounded, color: _subTextColor, size: 32),
+                      const SizedBox(height: 10),
+                      Text(
+                        'No PCs match this filter',
+                        style: TextStyle(color: _subTextColor, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                );
+              }
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -239,9 +280,9 @@ class _LabMaintenanceOverviewScreenState
                   crossAxisSpacing: 10,
                   childAspectRatio: 1.25,
                 ),
-                itemCount: selected.workstations.length,
+                itemCount: filteredWorkstations.length,
                 itemBuilder: (context, index) =>
-                    _pcTile(selected.workstations[index]),
+                    _pcTile(filteredWorkstations[index]),
               );
             },
           ),
@@ -452,62 +493,46 @@ class _LabMaintenanceOverviewScreenState
 
   Widget _selectedRoomHeader(LabOverview room) {
     final color = _conditionColor(room.maintenanceColor);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: _isDarkMode ? 0.4 : 0.05),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  'LAB ${room.roomName} MAP',
-                  style: TextStyle(
-                    color: _textColor,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14.5,
-                    letterSpacing: 0.4,
+              Text(
+                'LAB ${room.roomName} MAP',
+                style: TextStyle(
+                  color: _textColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              if (_pcFilter != null) ...[
+                const SizedBox(width: 12),
+                TextButton.icon(
+                  onPressed: () => setState(() => _pcFilter = null),
+                  icon: const Icon(Icons.close_rounded, size: 14),
+                  label: const Text('Clear filter', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: _errorColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: _isDarkMode ? 0.16 : 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: color.withValues(alpha: 0.4)),
-                ),
-                child: Text(
-                  room.maintenanceColor.toUpperCase(),
-                  style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
-                ),
-              ),
+              ],
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              _badge('Online ${room.onlinePcCount}', _okColor),
-              _badge('Offline ${room.offlinePcCount}', Colors.blueGrey),
-              _badge('Healthy ${room.healthyPcCount}', _okColor),
-              _badge('Warning ${room.warningPcCount}', _warnColor),
-              _badge('Damaged ${room.damagedPcCount}', _errorColor),
-              _badge('Problems ${room.activeProblemCount}', color),
-              _badge('Awaiting Teacher ${room.awaitingTeacherApprovalCount}', _accentBForeground),
+              _badge('Online ${room.onlinePcCount}', _okColor, 'online'),
+              _badge('Offline ${room.offlinePcCount}', Colors.blueGrey, 'offline'),
+              _badge('All Damage ${room.activeProblemCount}', _indigo, 'damaged'),
+              _badge('Minor ${room.warningPcCount}', _warnColor, 'minor'),
+              _badge('Major ${room.damagedPcCount}', _errorColor, 'major'),
             ],
           ),
         ],
@@ -515,52 +540,97 @@ class _LabMaintenanceOverviewScreenState
     );
   }
 
-  Widget _badge(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: _isDarkMode ? 0.16 : 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+  Widget _badge(String label, Color color, String value) {
+    final active = _pcFilter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _pcFilter = active ? null : value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: active
+              ? color.withValues(alpha: _isDarkMode ? 0.25 : 0.18)
+              : color.withValues(alpha: _isDarkMode ? 0.12 : 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active ? color : color.withValues(alpha: 0.3),
+            width: active ? 1.8 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+          ),
+        ),
       ),
     );
   }
 
   Widget _pcTile(LabWorkstation pc) {
-    final color = _conditionColor(pc.maintenanceColor);
+    // Determine the status color based on connectivity and problems
+    Color statusColor;
+    if (pc.activeProblemCount > 3 || pc.majorProblemCount > 0) {
+      statusColor = _errorColor;
+    } else if (pc.activeProblemCount > 0) {
+      statusColor = _warnColor;
+    } else if (!pc.isOnline) {
+      statusColor = Colors.blueGrey;
+    } else {
+      statusColor = _okColor;
+    }
+
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: statusColor.withValues(alpha: _isDarkMode ? 0.08 : 0.05),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: color.withValues(alpha: 0.7), width: 1.6),
+        border: Border.all(
+          color: statusColor.withValues(alpha: 0.6),
+          width: 1.6,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.computer_rounded, color: color, size: 26),
+          Icon(Icons.computer_rounded, color: statusColor, size: 26),
           const SizedBox(height: 5),
           Text(
             pc.pcId,
-            style: TextStyle(color: _textColor, fontWeight: FontWeight.w700, fontSize: 13),
+            style: TextStyle(
+              color: _textColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 13.5,
+            ),
           ),
           const SizedBox(height: 3),
           Text(
             pc.isOnline ? 'ONLINE' : 'OFFLINE',
             style: TextStyle(
-              color: pc.isOnline ? _okColor : Colors.blueGrey,
+              color: statusColor,
               fontSize: 10,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
             ),
           ),
           if (pc.activeProblemCount > 0)
-            Text(
-              '${pc.activeProblemCount} problem(s)',
-              style: TextStyle(color: color, fontSize: 10),
+            Container(
+              margin: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '${pc.activeProblemCount} ERR',
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
         ],
       ),

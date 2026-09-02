@@ -47,9 +47,9 @@ class _PreventiveMaintenanceScreenState
   Color get _border => _isDark
       ? Colors.white.withValues(alpha: 0.07)
       : Colors.black.withValues(alpha: 0.09);
-  Color get _teal => const Color(0xFFC0C0C0);
-  Color get _blue => const Color(0xFF000000);
-  Color get _accentAForeground => _isDark ? _teal : const Color(0xFF606060);
+  Color get _teal => const Color(0xFFFFD700);
+  Color get _blue => const Color(0xFF003366);
+  Color get _accentAForeground => _isDark ? _teal : _blue;
   Color get _accentBForeground => _isDark ? Colors.white : _blue;
   Color get _amber => const Color(0xFFF7B84F);
   Color get _red => const Color(0xFFFF6B6B);
@@ -575,7 +575,7 @@ class _PreventiveMaintenanceScreenState
                               dropdownColor: _card,
                               style: TextStyle(color: _text),
                               items: const [
-                                DropdownMenuItem(value: 'good', child: Text('Good / Healthy')),
+                                DropdownMenuItem(value: 'good', child: Text('Good')),
                                 DropdownMenuItem(
                                   value: 'needs_attention',
                                   child: Text('Needs attention'),
@@ -893,7 +893,7 @@ class _PreventiveMaintenanceScreenState
       case 'needs_attention':
         return 'Needs attention';
       default:
-        return 'Good / Healthy';
+        return 'Good';
     }
   }
 }

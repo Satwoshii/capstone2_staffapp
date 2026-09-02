@@ -50,10 +50,10 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
   Color get _accentAForeground =>
-      _isDarkMode ? _accentA : const Color(0xFF606060);
+      _isDarkMode ? _accentA : _accentB;
   Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
@@ -341,7 +341,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: _accentA, width: 1.5),
+        borderSide: BorderSide(color: _accentAForeground, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -491,12 +491,12 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: selected
-                    ? _accentA.withValues(alpha: _isDarkMode ? 0.1 : 0.08)
+                    ? _accentAForeground.withValues(alpha: _isDarkMode ? 0.1 : 0.08)
                     : _cardColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: selected
-                      ? _accentA.withValues(alpha: 0.5)
+                      ? _accentAForeground.withValues(alpha: 0.5)
                       : _borderColor,
                   width: selected ? 1.3 : 1,
                 ),
@@ -818,7 +818,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
   void _showMessage(String message, {bool isError = false}) {
     if (!mounted) return;
-    final accent = isError ? _errorColor : _accentA;
+    final accent = isError ? _errorColor : _accentAForeground;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -980,7 +980,7 @@ class _PrimaryButton extends StatelessWidget {
     
     final bgColor = disabled 
         ? const Color(0xFFEDF0F5).withValues(alpha: 0.5) 
-        : (isDarkMode ? const Color(0xFFC0C0C0) : const Color(0xFF000000));
+        : (isDarkMode ? const Color(0xFFFFD700) : const Color(0xFF003366));
     final textColor = disabled
         ? Colors.black26
         : (isDarkMode ? Colors.black : Colors.white);
@@ -1036,8 +1036,8 @@ class _SendButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final color = enabled 
-        ? (isDarkMode ? const Color(0xFFC0C0C0) : const Color(0xFF000000))
-        : const Color(0xFFC0C0C0).withValues(alpha: 0.2);
+        ? (isDarkMode ? const Color(0xFFFFD700) : const Color(0xFF003366))
+        : (isDarkMode ? const Color(0xFFFFD700) : const Color(0xFF003366)).withValues(alpha: 0.2);
     final iconColor = enabled
         ? (isDarkMode ? Colors.black : Colors.white)
         : Colors.white;

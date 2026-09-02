@@ -30,10 +30,10 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
   Color get _cardColor => _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
   Color get _accentAForeground =>
-      _isDarkMode ? _accentA : const Color(0xFF606060);
+      _isDarkMode ? _accentA : _accentB;
   Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
@@ -367,7 +367,7 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: _accentA, width: 1.5),
+                borderSide: BorderSide(color: _accentAForeground, width: 1.5),
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),

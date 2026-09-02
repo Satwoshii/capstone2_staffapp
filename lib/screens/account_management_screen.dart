@@ -37,10 +37,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
   Color get _accentAForeground =>
-      _isDarkMode ? _accentA : const Color(0xFF606060);
+      _isDarkMode ? _accentA : _accentB;
   Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
@@ -140,7 +140,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: _accentA, width: 1.5),
+        borderSide: BorderSide(color: _accentAForeground, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -166,7 +166,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   }) {
     final disabled = onPressed == null;
     final bgColor = disabled
-        ? _accentA.withValues(alpha: 0.2)
+        ? _accentAForeground.withValues(alpha: 0.2)
         : _accentColor;
     final fgColor = _isDarkMode ? Colors.black : Colors.white;
 
@@ -848,7 +848,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
         border: Border.all(
           color: user.isSuperAdmin
               ? _accentB.withValues(alpha: 0.35)
-              : (user.active ? _accentA.withValues(alpha: 0.2) : _borderColor),
+              : (user.active ? _accentAForeground.withValues(alpha: 0.2) : _borderColor),
         ),
       ),
       child: Row(
@@ -860,11 +860,11 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: user.active 
-                  ? (_isDarkMode ? _accentA.withValues(alpha: 0.12) : _accentB.withValues(alpha: 0.08))
+                  ? (_isDarkMode ? _accentAForeground.withValues(alpha: 0.12) : _accentAForeground.withValues(alpha: 0.08))
                   : _fieldColor,
               border: Border.all(
                 color: user.active
-                    ? _accentA.withValues(alpha: 0.35)
+                    ? _accentAForeground.withValues(alpha: 0.35)
                     : _borderColor,
                 width: 1.2,
               ),

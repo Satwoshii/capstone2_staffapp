@@ -127,9 +127,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Color get _sub => _dark ? Colors.white54 : Colors.black54;
   Color get _border =>
       _dark ? Colors.white.withValues(alpha: 0.08) : Colors.black12;
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
-  Color get _accentAForeground => _dark ? _accentA : const Color(0xFF606060);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
+  Color get _accentAForeground => _dark ? _accentA : _accentB;
   Color get _accentBForeground => _dark ? Colors.white : _accentB;
   Color get _errorColor => const Color(0xFFFF6B6B);
   Color get _accentColor => _dark ? _accentA : _accentB;
@@ -280,7 +280,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    _accentA.withValues(alpha: _dark ? 0.12 : 0.10),
+                    _accentAForeground.withValues(alpha: _dark ? 0.12 : 0.10),
                     Colors.transparent,
                   ],
                 ),
@@ -294,14 +294,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Widget _topBar() {
     final room = widget.user.assignedRoomName ?? 'Unassigned';
+    final navBg = _dark ? _card.withValues(alpha: 0.96) : _accentB;
+    final navFg = _dark ? _text : Colors.white;
+    final navSub = _dark ? _sub : Colors.white70;
+    final navBorder = _dark ? _border : Colors.white.withOpacity(0.1);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
       decoration: BoxDecoration(
-        color: _card.withValues(alpha: _dark ? 0.96 : 0.98),
-        border: Border(bottom: BorderSide(color: _border)),
+        color: navBg,
+        border: Border(bottom: BorderSide(color: navBorder)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: _dark ? 0.16 : 0.04),
+            color: Colors.black.withValues(alpha: _dark ? 0.16 : 0.08),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -314,15 +319,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               height: 44,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                color: _accentColor.withValues(alpha: 0.14),
+                color: _dark ? _accentColor.withValues(alpha: 0.14) : Colors.white.withOpacity(0.2),
                 border: Border.all(
-                  color: _accentColor.withValues(alpha: 0.38),
+                  color: _dark ? _accentColor.withValues(alpha: 0.38) : Colors.white.withOpacity(0.3),
                   width: 1.2,
                 ),
               ),
               child: Icon(
                 Icons.school_rounded,
-                color: _accentAForeground,
+                color: _dark ? _accentAForeground : Colors.white,
                 size: 24,
               ),
             ),
@@ -331,9 +336,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Syswatch Teacher',
+                'SysWatch Teacher',
                 style: TextStyle(
-                  color: _text,
+                  color: navFg,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.1,
@@ -342,17 +347,25 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               const SizedBox(height: 2),
               Text(
                 'Laboratory $room · Monitoring Dashboard',
-                style: TextStyle(color: _sub, fontSize: 11.5),
+                style: TextStyle(color: navSub, fontSize: 11.5),
               ),
             ],
           ),
           const Spacer(),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: _field,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _border),
+              color: _dark ? _field : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _dark ? navBorder : Colors.black.withOpacity(0.1), width: 1.2),
+              boxShadow: [
+                if (!_dark)
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.12),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+              ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -361,18 +374,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: _accentA.withValues(alpha: 0.12),
+                    color: _dark ? _accentAForeground.withValues(alpha: 0.12) : _accentB.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.person_rounded, color: _accentAForeground, size: 15),
+                  child: Icon(Icons.person_rounded, color: _dark ? _accentAForeground : _accentB, size: 15),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Text(
                   widget.user.displayName,
                   style: TextStyle(
-                    color: _text,
+                    color: _dark ? navFg : Colors.black87,
                     fontSize: 12.8,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
@@ -408,6 +421,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     required String tooltip,
     required VoidCallback? onPressed,
   }) {
+    final navBorder = _dark ? _border : Colors.white.withOpacity(0.1);
     return Tooltip(
       message: tooltip,
       child: SizedBox(
@@ -415,16 +429,16 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         height: 40,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: _field,
+            color: _dark ? _field : Colors.white.withOpacity(0.15),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _border),
+            border: Border.all(color: navBorder),
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: onPressed,
-              child: Icon(icon, color: _sub, size: 19),
+              child: Icon(icon, color: _dark ? _sub : Colors.white70, size: 19),
             ),
           ),
         ),
@@ -1085,7 +1099,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: _accentA.withValues(alpha: 0.8), width: 1.6),
+        borderSide: BorderSide(color: _accentAForeground.withValues(alpha: 0.8), width: 1.6),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -1681,7 +1695,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: _accentA.withValues(alpha: 0.35)),
+            side: BorderSide(color: _accentAForeground.withValues(alpha: 0.35)),
           ),
         ),
       );

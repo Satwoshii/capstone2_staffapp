@@ -6,6 +6,9 @@ import '../models/pc_health_record.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/message_state.dart';
+import 'room_pc_status_screen.dart';
+
+//Status Report Screen
 
 class PcHealthReportsScreen extends StatefulWidget {
   const PcHealthReportsScreen({super.key});
@@ -19,7 +22,7 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
   Future<List<PcHealthRecord>>? _future;
   Timer? _timer;
   bool _issuesOnly = false;
-  final Set<String> _expandedRecords = <String>{};
+  String? _selectedRoom;
 
   // ── Palette (matches the rest of the app) ───────────────────────────────
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
@@ -27,10 +30,10 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
   Color get _cardColor => _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
   Color get _accentAForeground =>
-      _isDarkMode ? _accentA : const Color(0xFF606060);
+      _isDarkMode ? _accentA : _accentB;
   Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
@@ -62,85 +65,130 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          child: _buildToolbar(),
-        ),
-        Expanded(
-          child: FutureBuilder<List<PcHealthRecord>>(
-            future: _future,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(_accentAForeground),
-                  ),
-                );
-              }
-              if (snapshot.hasError) {
-                return MessageState(
-                  icon: Icons.wifi_off,
-                  title: 'Could not load PC health',
-                  message: cleanError(snapshot.error!),
-                  onRetry: _refresh,
-                );
-              }
-              final search = _searchController.text.trim().toLowerCase();
-              final records = (snapshot.data ?? const <PcHealthRecord>[])
-                  .where((record) {
-                final style = _styleForStatus(record.status);
-                if (_issuesOnly && style.isHealthy) return false;
-                if (search.isEmpty) return true;
-                return [
-                  record.roomName,
-                  record.pcId,
-                  record.status,
-                  record.lastDisplayName ?? '',
-                  readableHealthDetails(record.details),
-                ].join(' ').toLowerCase().contains(search);
-              }).toList()
-                ..sort((a, b) {
-                  final aTime = a.lastCheck ?? DateTime.fromMillisecondsSinceEpoch(0);
-                  final bTime = b.lastCheck ?? DateTime.fromMillisecondsSinceEpoch(0);
-                  return bTime.compareTo(aTime);
-                });
+    if (_selectedRoom != null) {
+      return FutureBuilder<List<PcHealthRecord>>(
+        future: _future,
+        builder: (context, snapshot) {
+          final all = snapshot.data ?? [];
+          final records = all.where((r) => r.roomName == _selectedRoom).toList();
+          return RoomPcStatusScreen(
+            roomName: _selectedRoom!,
+            records: records,
+            onBack: () => setState(() => _selectedRoom = null),
+          );
+        },
+      );
+    }
 
-              if (records.isEmpty) {
-                return MessageState(
-                  icon: Icons.monitor_heart_outlined,
-                  title: _issuesOnly ? 'No matching issues' : 'No PC health records',
-                  message: _issuesOnly
-                      ? 'No unhealthy PCs match the filter.'
-                      : 'Student PCs will appear after their first status sync.',
-                );
-              }
+    return FutureBuilder<List<PcHealthRecord>>(
+      future: _future,
+      builder: (context, snapshot) {
+        final allRecords = snapshot.data ?? const <PcHealthRecord>[];
+        final totalIssues = allRecords.where((r) => !_styleForStatus(r.status).isHealthy).length;
 
-              return RefreshIndicator(
-                onRefresh: () async => _refresh(),
-                color: _accentAForeground,
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-                  itemCount: records.length,
-                  itemBuilder: (context, index) {
-                    final record = records[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _buildRecordCard(record),
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: _buildToolbar(totalIssues),
+            ),
+            Expanded(
+              child: Builder(
+                builder: (context) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(_accentAForeground),
+                      ),
                     );
-                  },
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+                  }
+                  if (snapshot.hasError) {
+                    return MessageState(
+                      icon: Icons.wifi_off,
+                      title: 'Could not load PC health',
+                      message: cleanError(snapshot.error!),
+                      onRetry: _refresh,
+                    );
+                  }
+                  final search = _searchController.text.trim().toLowerCase();
+
+                  // Filter based on search and issuesOnly
+                  final filteredRecords = allRecords.where((record) {
+                    final style = _styleForStatus(record.status);
+                    if (_issuesOnly && style.isHealthy) return false;
+                    if (search.isEmpty) return true;
+                    return [
+                      record.roomName,
+                      record.pcId,
+                      record.status,
+                      record.lastDisplayName ?? '',
+                      readableHealthDetails(record.details),
+                    ].join(' ').toLowerCase().contains(search);
+                  }).toList();
+
+                  if (filteredRecords.isEmpty) {
+                    return MessageState(
+                      icon: Icons.monitor_heart_outlined,
+                      title: _issuesOnly ? 'No matching issues' : 'No PC health records',
+                      message: _issuesOnly
+                          ? 'No unhealthy PCs match the filter.'
+                          : 'Student PCs will appear after their first status sync.',
+                    );
+                  }
+
+                  // Group by room
+                  final grouped = <String, List<PcHealthRecord>>{};
+                  for (final r in filteredRecords) {
+                    grouped.putIfAbsent(r.roomName, () => []).add(r);
+                  }
+
+                  // Sort rooms alphabetically
+                  final sortedRooms = grouped.keys.toList()..sort();
+
+                  // Sort PCs within each room (by PC ID)
+                  for (final room in sortedRooms) {
+                    grouped[room]!.sort((a, b) => a.pcId.compareTo(b.pcId));
+                  }
+
+                  return RefreshIndicator(
+                    onRefresh: () async => _refresh(),
+                    color: _accentAForeground,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final width = constraints.maxWidth;
+                          // 3 or 4 columns depending on available width
+                          final int crossAxisCount = width > 1400 ? 4 : (width > 950 ? 3 : (width > 650 ? 2 : 1));
+                          const double spacing = 16.0;
+                          final double itemWidth = (width - (crossAxisCount - 1) * spacing) / crossAxisCount;
+
+                          return Wrap(
+                            spacing: spacing,
+                            runSpacing: spacing,
+                            children: sortedRooms.map((roomName) {
+                              final records = grouped[roomName]!;
+                              return SizedBox(
+                                width: itemWidth,
+                                child: _buildRoomCard(roomName, records),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   // ── Toolbar ─────────────────────────────────────────────────────────────
-  Widget _buildToolbar() {
+  Widget _buildToolbar(int totalIssues) {
     return Row(
       children: [
         Expanded(
@@ -172,10 +220,69 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
           ),
         ),
         const SizedBox(width: 12),
+        _buildNotificationBell(totalIssues),
+        const SizedBox(width: 12),
         _buildIssuesOnlyToggle(),
         const SizedBox(width: 10),
         _buildRefreshButton(),
       ],
+    );
+  }
+
+  Widget _buildNotificationBell(int totalIssues) {
+    if (totalIssues == 0) return const SizedBox.shrink();
+
+    final activeColor = const Color(0xFFFF6B6B);
+    return Tooltip(
+      message: '$totalIssues PC issue${totalIssues == 1 ? '' : 's'} detected',
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _issuesOnly = true;
+            _searchController.clear();
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: activeColor.withValues(alpha: 0.15),
+            border: Border.all(
+              color: activeColor.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                Icons.notifications_active_rounded,
+                size: 18,
+                color: activeColor,
+              ),
+              Positioned(
+                top: -8,
+                right: -8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6B6B),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _cardColor, width: 1.5),
+                  ),
+                  child: Text(
+                    '$totalIssues',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -232,181 +339,178 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
     );
   }
 
-  // ── Record card ──────────────────────────────────────────────────────────
-  Widget _buildRecordCard(PcHealthRecord record) {
-    final style = _styleForStatus(record.status);
-    final recordKey = '${record.roomName}|${record.pcId}';
-    final isExpanded = _expandedRecords.contains(recordKey);
-    final details = isExpanded
-        ? readableHealthDetails(record.details)
-        : readableHealthIssueSummary(record.details);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          setState(() {
-            if (isExpanded) {
-              _expandedRecords.remove(recordKey);
-            } else {
-              _expandedRecords.add(recordKey);
-            }
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: _cardColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isExpanded
-                  ? style.color.withValues(alpha: 0.32)
-                  : _borderColor,
-            ),
+  // ── Room card ────────────────────────────────────────────────────────────
+  Widget _buildRoomCard(String roomName, List<PcHealthRecord> records) {
+    final issueCount = records.where((r) => !_styleForStatus(r.status).isHealthy).length;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: _borderColor,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: style.color.withValues(alpha: 0.14),
-                ),
-                child: Icon(style.icon, color: style.color, size: 22),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                setState(() => _selectedRoom = roomName);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${record.roomName} · ${record.pcId}',
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            _fieldColor,
+                            _fieldColor.withValues(alpha: 0.5),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.meeting_room_rounded,
+                        color: _accentAForeground,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            roomName,
                             style: TextStyle(
                               color: _textColor,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
                             ),
                           ),
-                        ),
-                        _buildStatusBadge(record.status, style),
-                        const SizedBox(width: 6),
-                        AnimatedRotation(
-                          turns: isExpanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 200),
-                          child: Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: _subTextColor,
-                            size: 22,
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.devices_rounded, size: 12, color: _subTextColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${records.length} workstation${records.length == 1 ? '' : 's'}',
+                                style: TextStyle(
+                                  color: _subTextColor,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Last check: ${formatDateTime(record.lastCheck)}',
-                      style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                    ),
-                    if ((record.lastDisplayName ?? '').isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          'Last user: ${record.lastDisplayName}',
-                          style: TextStyle(
-                            color: _subTextColor,
-                            fontSize: 12.5,
-                          ),
-                        ),
+                        ],
                       ),
-                    if (details.isNotEmpty)
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOut,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            details,
-                            style: TextStyle(
-                              color: _subTextColor,
-                              fontSize: 12.5,
-                              height: 1.5,
+                    ),
+                    if (issueCount > 0)
+                      Container(
+                        margin: const EdgeInsets.only(right: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF6B6B), Color(0xFFFF8787)],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFF6B6B).withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.notifications_active_rounded,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '$issueCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        isExpanded
-                            ? 'Click to hide full status'
-                            : 'Click to view all component statuses',
-                        style: TextStyle(
-                          color: style.color.withValues(alpha: 0.85),
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: _fieldColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.chevron_right_rounded,
+                        color: _subTextColor,
+                        size: 20,
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String status, _HealthStyle style) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: style.color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: style.color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(style.icon, size: 13, color: style.color),
-          const SizedBox(width: 5),
-          Text(
-            status.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: style.color,
-              letterSpacing: 0.3,
             ),
           ),
         ],
       ),
     );
   }
+
   _HealthStyle _styleForStatus(String value) {
     final status = value.trim().toLowerCase();
     if (['healthy', 'ok', 'online', 'normal', 'working'].contains(status)) {
-      return _HealthStyle(Icons.check_circle, _accentAForeground, true);
+      return const _HealthStyle(Icons.check_circle_rounded, Color(0xFF4CAF50), true);
+    }
+    if (status.contains('offline')) {
+      return _HealthStyle(Icons.cloud_off_rounded, _subTextColor, false);
     }
     if (status.contains('critical') ||
         status.contains('broken') ||
-        status.contains('offline') ||
         status.contains('failed')) {
-      return const _HealthStyle(Icons.error, Color(0xFFFF6B6B), false);
+      return const _HealthStyle(Icons.error_rounded, Color(0xFFFF6B6B), false);
     }
     if (status.contains('minor') ||
         status.contains('warning') ||
         status.contains('degraded')) {
-      return const _HealthStyle(Icons.warning_amber, Color(0xFFF7B84F), false);
+      return const _HealthStyle(Icons.warning_amber_rounded, Color(0xFFF7B84F), false);
     }
-    return _HealthStyle(Icons.help_outline, _accentBForeground, false);
+    return _HealthStyle(Icons.help_outline_rounded, _accentBForeground, false);
   }
 }
 

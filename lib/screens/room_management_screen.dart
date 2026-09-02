@@ -33,10 +33,10 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
   Color get _accentAForeground =>
-      _isDarkMode ? _accentA : const Color(0xFF606060);
+      _isDarkMode ? _accentA : _accentB;
   Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
@@ -135,7 +135,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: _accentA, width: 1.5),
+        borderSide: BorderSide(color: _accentAForeground, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -187,22 +187,98 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                     message: 'Add the first laboratory room above.',
                   );
                 }
+
+                // Active rooms first, then alphabetical within each group.
+                final sorted = [...rooms]..sort((a, b) {
+                  if (a.active != b.active) return a.active ? -1 : 1;
+                  return a.roomName
+                      .toLowerCase()
+                      .compareTo(b.roomName.toLowerCase());
+                });
+                final activeRooms = sorted.where((r) => r.active).toList();
+                final inactiveRooms = sorted.where((r) => !r.active).toList();
+
                 return RefreshIndicator(
                   color: _accentAForeground,
                   backgroundColor: _cardColor,
                   onRefresh: () async => _refresh(),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    itemCount: rooms.length,
-                    itemBuilder: (context, index) {
-                      return _buildRoomTile(rooms[index]);
-                    },
+                  child: CustomScrollView(
+                    slivers: [
+                      if (activeRooms.isNotEmpty) ...[
+                        SliverToBoxAdapter(
+                          child: _buildSectionHeader(
+                              'Active', activeRooms.length),
+                        ),
+                        _buildRoomGrid(activeRooms),
+                      ],
+                      if (inactiveRooms.isNotEmpty) ...[
+                        SliverToBoxAdapter(
+                          child: _buildSectionHeader(
+                              'Inactive', inactiveRooms.length),
+                        ),
+                        _buildRoomGrid(inactiveRooms),
+                      ],
+                      const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                    ],
                   ),
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String label, int count) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: _textColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: _fieldColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                color: _subTextColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoomGrid(List<RoomRecord> rooms) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 250, // Controls the width logic
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          mainAxisExtent: 250,     // Static height in pixels
+        ),
+        delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildRoomCard(rooms[index]),
+          childCount: rooms.length,
+        ),
       ),
     );
   }
@@ -296,7 +372,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
 
   Widget _buildAddButton() {
     final bgColor = _saving
-        ? _accentA.withValues(alpha: 0.25)
+        ? _accentAForeground.withValues(alpha: 0.25)
         : (_isDarkMode ? _accentA : _accentB);
     final fgColor = _isDarkMode ? Colors.black : Colors.white;
 
@@ -378,23 +454,31 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
     );
   }
 
-  Widget _buildRoomTile(RoomRecord room) {
+  Widget _buildRoomCard(RoomRecord room) {
     final busy = _busyRooms.contains(room.roomName);
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: _cardColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: room.active ? _accentA.withValues(alpha: 0.25) : _borderColor,
+          color: room.active ? _accentAForeground.withValues(alpha: 0.25) : _borderColor,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: room.active
@@ -402,45 +486,53 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                   : _fieldColor,
               border: Border.all(
                 color: room.active
-                    ? _accentA.withValues(alpha: 0.35)
+                    ? _accentAForeground.withValues(alpha: 0.35)
                     : _borderColor,
                 width: 1.2,
               ),
             ),
             child: Icon(
-              room.active ? Icons.meeting_room : Icons.block,
+              room.active ? Icons.meeting_room_rounded : Icons.block_flipped,
               color: room.active
                   ? (_isDarkMode ? Colors.black : Colors.white)
                   : _subTextColor,
-              size: 22,
+              size: 26,
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  room.roomName,
-                  style: TextStyle(
-                    color: _textColor,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15.5,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Planned PCs: ${room.pcCount}  •  Registered: ${room.registeredPcCount}',
-                  style: TextStyle(color: _subTextColor, fontSize: 12.5),
-                ),
-              ],
+          const SizedBox(height: 12),
+          Text(
+            room.roomName,
+            style: TextStyle(
+              color: _textColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              letterSpacing: -0.5,
             ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.computer_rounded, size: 14, color: _subTextColor),
+              const SizedBox(width: 6),
+              Text(
+                '${room.registeredPcCount} / ${room.pcCount} PCs',
+                style: TextStyle(
+                  color: _subTextColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           busy
               ? SizedBox(
-            width: 22,
-            height: 22,
+            width: 24,
+            height: 24,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               color: _accentAForeground,
@@ -453,11 +545,11 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                 room.active ? 'Active' : 'Inactive',
                 style: TextStyle(
                   color: room.active ? _successColor : _subTextColor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               _ThemedSwitch(
                 value: room.active,
                 onChanged: (_) => _toggleRoom(room),
@@ -500,15 +592,15 @@ class _ThemedSwitch extends StatelessWidget {
         width: 44,
         height: 26,
         padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: value
-                ? (Theme.of(context).brightness == Brightness.dark
-                    ? accentA
-                    : accentB)
-                : fieldColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: value ? Colors.transparent : borderColor),
-          ),
+        decoration: BoxDecoration(
+          color: value
+              ? (Theme.of(context).brightness == Brightness.dark
+              ? accentA
+              : accentB)
+              : fieldColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: value ? Colors.transparent : borderColor),
+        ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,

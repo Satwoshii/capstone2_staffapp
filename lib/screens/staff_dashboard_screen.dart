@@ -38,10 +38,10 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       _isDarkMode ? const Color(0xFF13141A) : Colors.white;
   Color get _fieldColor =>
       _isDarkMode ? const Color(0xFF1C1E26) : const Color(0xFFEDF0F5);
-  Color get _accentA => const Color(0xFFC0C0C0);
-  Color get _accentB => const Color(0xFF000000);
+  Color get _accentA => const Color(0xFFFFD700);
+  Color get _accentB => const Color(0xFF003366);
   Color get _accentAForeground =>
-      _isDarkMode ? _accentA : const Color(0xFF606060);
+      _isDarkMode ? _accentA : _accentB;
   Color get _accentBForeground => _isDarkMode ? Colors.white : _accentB;
   Color get _textColor =>
       _isDarkMode ? Colors.white : const Color(0xFF1A1C1E);
@@ -145,20 +145,23 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
 
   // ── Top bar ─────────────────────────────────────────────────────────────
   Widget _buildTopBar() {
+    final navBg = _isDarkMode ? _cardColor : _accentB;
+    final navFg = _isDarkMode ? _textColor : Colors.white;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       decoration: BoxDecoration(
-        color: _cardColor,
-        border: Border(bottom: BorderSide(color: _borderColor)),
+        color: navBg,
+        border: Border(bottom: BorderSide(color: _isDarkMode ? _borderColor : Colors.white.withOpacity(0.1))),
       ),
       child: Row(
         children: [
           _buildLogoBadge(),
           const SizedBox(width: 12),
           Text(
-            widget.user.isSuperAdmin ? 'Syswatch Super Admin' : 'Syswatch Admin',
+            widget.user.isSuperAdmin ? 'SysWatch Super Admin' : 'SysWatch Admin',
             style: TextStyle(
-              color: _textColor,
+              color: navFg,
               fontSize: 18,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.2,
@@ -181,8 +184,8 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
       height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: _isDarkMode ? _accentA : _accentB,
-        border: Border.all(color: _accentA.withValues(alpha: 0.45), width: 1.2),
+        color: _isDarkMode ? (_isDarkMode ? _accentA : _accentB) : Colors.white.withOpacity(0.2),
+        border: Border.all(color: (_isDarkMode ? _accentAForeground : Colors.white).withValues(alpha: 0.45), width: 1.2),
       ),
       child: Icon(
         Icons.memory_rounded,
@@ -219,21 +222,30 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
     required String label,
     required Color iconColor,
   }) {
+    final navBorder = _isDarkMode ? _borderColor : Colors.white.withOpacity(0.1);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: _fieldColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _borderColor),
+        color: _isDarkMode ? _fieldColor : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _isDarkMode ? _borderColor : _accentB.withOpacity(0.2), width: 1.2),
+        boxShadow: [
+          if (!_isDarkMode)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: iconColor),
-          const SizedBox(width: 6),
+          Icon(icon, size: 15, color: _isDarkMode ? iconColor : _accentB),
+          const SizedBox(width: 8),
           Text(
             label,
-            style: TextStyle(fontSize: 12.5, color: _textColor, fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 12.5, color: _isDarkMode ? _textColor : Colors.black87, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -243,9 +255,9 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
   Widget _buildLogoutButton() {
     return Container(
       decoration: BoxDecoration(
-        color: _fieldColor,
+        color: _isDarkMode ? _fieldColor : Colors.white.withOpacity(0.15),
         shape: BoxShape.circle,
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: _isDarkMode ? _borderColor : Colors.white.withOpacity(0.1)),
       ),
       child: IconButton(
         tooltip: 'Sign out',
@@ -256,34 +268,52 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
           height: 18,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(_accentBForeground),
+            valueColor: AlwaysStoppedAnimation<Color>(_isDarkMode ? _accentBForeground : Colors.white),
           ),
         )
-            : Icon(Icons.logout_rounded, size: 19, color: _subTextColor),
+            : Icon(Icons.logout_rounded, size: 19, color: _isDarkMode ? _subTextColor : Colors.white70),
       ),
     );
   }
 
   // ── Sidebar ─────────────────────────────────────────────────────────────
   Widget _buildSidebar() {
+    final sideBg = _isDarkMode ? _cardColor : _accentA;
+
     return Container(
       width: 220,
-      color: _cardColor,
+      color: sideBg,
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _isDarkMode ? _fieldColor : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _isDarkMode ? _borderColor : Colors.black.withOpacity(0.1),
+                width: 1.2,
+              ),
+              boxShadow: [
+                if (!_isDarkMode)
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+              ],
+            ),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: _accentA.withValues(alpha: 0.15),
+                  backgroundColor: _isDarkMode ? _accentAForeground.withValues(alpha: 0.15) : Colors.black.withOpacity(0.1),
                   child: Text(
                     widget.user.isSuperAdmin ? 'S' : 'A',
                     style: TextStyle(
-                      color: _accentAForeground,
+                      color: _isDarkMode ? _accentAForeground : Colors.black87,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
@@ -291,19 +321,35 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    widget.user.isSuperAdmin ? 'Super Admin' : 'Admin',
-                    style: TextStyle(
-                      color: _subTextColor,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.user.isSuperAdmin ? 'Super Admin' : 'Admin',
+                        style: TextStyle(
+                          color: _isDarkMode ? _subTextColor : Colors.black54,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        widget.user.displayName.split(' ').first,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _isDarkMode ? _textColor : Colors.black87,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          Divider(color: _borderColor, height: 20),
+          const SizedBox(height: 16),
+          Divider(color: _isDarkMode ? _borderColor : Colors.black.withOpacity(0.08), height: 1),
+          const SizedBox(height: 16),
           for (int i = 0; i < _menuItems.length; i++)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -316,7 +362,8 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
 
   Widget _sidebarItem({required int index, required _MenuItem item}) {
     final selected = index == _selectedIndex;
-    final activeColor = _isDarkMode ? _accentA : _accentB;
+    final activeBg = _isDarkMode ? _accentA : _accentB;
+    final activeFg = _isDarkMode ? Colors.black : Colors.white;
 
     return GestureDetector(
       onTap: () => setState(() => _selectedIndex = index),
@@ -326,17 +373,22 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: selected ? activeColor.withValues(alpha: 0.12) : null,
-          border: selected
-              ? Border.all(color: activeColor.withValues(alpha: 0.4), width: 1)
-              : null,
+          color: selected ? activeBg : null,
+          boxShadow: [
+            if (selected && !_isDarkMode)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+          ],
         ),
         child: Row(
           children: [
             Icon(
               item.icon,
               size: 19,
-              color: selected ? activeColor : _subTextColor.withValues(alpha: 0.7),
+              color: selected ? activeFg : (_isDarkMode ? _subTextColor.withValues(alpha: 0.7) : Colors.black54),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -344,8 +396,8 @@ class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
                 item.title,
                 style: TextStyle(
                   fontSize: 13.5,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: selected ? _textColor : _subTextColor,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                  color: selected ? activeFg : (_isDarkMode ? _subTextColor : Colors.black87),
                 ),
               ),
             ),
