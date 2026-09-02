@@ -194,7 +194,7 @@ Win32Window::MessageHandler(HWND hwnd,
 
       MINMAXINFO* mmi = reinterpret_cast<MINMAXINFO*>(lparam);
       mmi->ptMinTrackSize.x = static_cast<LONG>(1304 * scale_factor);
-      mmi->ptMinTrackSize.y = static_cast<LONG>(730 * scale_factor);
+      mmi->ptMinTrackSize.y = static_cast<LONG>(830 * scale_factor);
       return 0;
     }
 

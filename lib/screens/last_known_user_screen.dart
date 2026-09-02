@@ -113,19 +113,20 @@ class _LastKnownUserScreenState extends State<LastKnownUserScreen> {
               return RefreshIndicator(
                 onRefresh: () async => _refresh(),
                 color: _accentAForeground,
-                child: GridView.builder(
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-                  itemCount: records.length,
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 320,
-                    mainAxisExtent: 210,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
+                  child: Wrap(
+                    spacing: 16,
+                    runSpacing: 16,
+                    children: records.map((record) {
+                      return SizedBox(
+                        width: 320,
+                        height: 210,
+                        child: _buildRecordCard(record),
+                      );
+                    }).toList(),
                   ),
-                  itemBuilder: (context, index) {
-                    final record = records[index];
-                    return _buildRecordCard(record);
-                  },
                 ),
               );
             },

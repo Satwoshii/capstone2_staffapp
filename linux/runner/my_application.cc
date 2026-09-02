@@ -52,10 +52,10 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "itsoadminappcapstone");
   }
 
-  gtk_window_set_default_size(window, 1304, 730);
+  gtk_window_set_default_size(window, 1304, 830);
   GdkGeometry geometry;
   geometry.min_width = 1304;
-  geometry.min_height = 730;
+  geometry.min_height = 830;
   gtk_window_set_geometry_hints(window, nullptr, &geometry, GDK_HINT_MIN_SIZE);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
