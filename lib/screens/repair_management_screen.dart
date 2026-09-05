@@ -325,10 +325,42 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
                 ].join(' ').toLowerCase().contains(search);
               }).toList()
                 ..sort((a, b) {
-                  if (a.repaired != b.repaired) return a.repaired ? 1 : -1;
-                  final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-                  final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-                  return bTime.compareTo(aTime);
+                  // FIFO: reports already being repaired stay at the top, then
+                  // waiting ITSO reports are ordered Queue #1, #2, #3...
+                  int rank(FaultReport report) {
+                    if (report.repaired || report.workflowStatus == 'resolved') {
+                      return 4;
+                    }
+                    if (report.workflowStatus == 'in_repair') return 0;
+                    if (report.workflowStatus == 'sent_to_itso' ||
+                        report.workflowStatus == 'reopened') {
+                      return 1;
+                    }
+                    if (report.workflowStatus == 'reported') return 2;
+                    if (report.workflowStatus == 'awaiting_teacher_approval') {
+                      return 3;
+                    }
+                    return 2;
+                  }
+
+                  final rankCompare = rank(a).compareTo(rank(b));
+                  if (rankCompare != 0) return rankCompare;
+
+                  final aQueue = a.queuePosition;
+                  final bQueue = b.queuePosition;
+                  if (aQueue != null && bQueue != null && aQueue != bQueue) {
+                    return aQueue.compareTo(bQueue);
+                  }
+
+                  final aTime = a.queuedAt ??
+                      a.createdAt ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  final bTime = b.queuedAt ??
+                      b.createdAt ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+
+                  // Oldest first = First Come, First Served.
+                  return aTime.compareTo(bTime);
                 });
 
               if (reports.isEmpty) {
@@ -535,6 +567,8 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
       if (report.details.isNotEmpty) report.details,
       'Severity: ${report.severity.toUpperCase()}',
       'Reported: ${formatDateTime(report.createdAt)}',
+      if (report.queuePosition != null)
+        'Queue: #${report.queuePosition}${report.queueTotal != null ? ' of ${report.queueTotal}' : ''}',
       if (report.acceptedByName != null)
         'Accepted by: ${report.acceptedByName} · ${formatDateTime(report.acceptedAt)}',
       if (report.handledByName != null)
@@ -654,8 +688,19 @@ class _RepairManagementScreenState extends State<RepairManagementScreen> {
     }
     if (report.workflowStatus == 'sent_to_itso' ||
         report.workflowStatus == 'reopened') {
+      final position = report.queuePosition;
+      final isNext = report.isNextInQueue || position == null || position == 1;
+
+      if (!isNext) {
+        return _workflowBadge(
+          'Queue #$position',
+          const Color(0xFF8A6D1D),
+          Icons.hourglass_top_rounded,
+        );
+      }
+
       return _primaryButton(
-        label: 'Accept / Start',
+        label: position == 1 ? 'Queue #1 · Accept / Start' : 'Accept / Start',
         icon: Icons.play_arrow_rounded,
         loading: updating,
         onPressed: updating ? null : () => _acceptReport(report),

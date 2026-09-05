@@ -245,12 +245,12 @@ class _InventorySoftwareScreenState extends State<InventorySoftwareScreen>
           Future<void> browseForExe() async {
             if (saving || importing) return;
             try {
-              const executableFiles = XTypeGroup(
+              final executableFiles = XTypeGroup(
                 label: 'Windows applications',
                 extensions: <String>['exe'],
               );
               final file = await openFile(
-                acceptedTypeGroups: const <XTypeGroup>[executableFiles],
+                acceptedTypeGroups: <XTypeGroup>[executableFiles],
               );
               if (file != null) await inspectExe(file.path);
             } catch (error) {

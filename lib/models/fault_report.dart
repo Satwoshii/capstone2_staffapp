@@ -22,6 +22,10 @@ class FaultReport {
   final DateTime? handledAt;
   final String? completedByName;
   final DateTime? completedAt;
+  final int? queuePosition;
+  final int? queueTotal;
+  final bool isNextInQueue;
+  final DateTime? queuedAt;
 
   const FaultReport({
     required this.id,
@@ -47,6 +51,10 @@ class FaultReport {
     this.handledAt,
     this.completedByName,
     this.completedAt,
+    this.queuePosition,
+    this.queueTotal,
+    this.isNextInQueue = false,
+    this.queuedAt,
   });
 
   factory FaultReport.fromJson(Map<String, dynamic> json) {
@@ -78,12 +86,22 @@ class FaultReport {
       handledAt: DateTime.tryParse((json['handled_at'] ?? '').toString()),
       completedByName: _nullable(json['completed_by_name']),
       completedAt: DateTime.tryParse((json['completed_at'] ?? '').toString()),
+      queuePosition: _toNullableInt(json['queue_position']),
+      queueTotal: _toNullableInt(json['queue_total']),
+      isNextInQueue: _toBool(json['is_next_in_queue']),
+      queuedAt: DateTime.tryParse((json['queued_at'] ?? json['created_at'] ?? '').toString()),
     );
   }
 
   static String? _nullable(dynamic value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? null : text;
+  }
+
+  static int? _toNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
   }
 
   static bool _toBool(dynamic value) {

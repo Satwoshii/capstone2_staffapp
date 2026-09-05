@@ -625,6 +625,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const Spacer(),
           Text(
             'Reported: ${formatDateTime(report.createdAt)}'
+            '${report.queuePosition != null ? '\nFIFO Queue: #${report.queuePosition}${report.queueTotal != null ? ' of ${report.queueTotal}' : ''}' : ''}'
             '${report.acceptedByName != null ? '\nAccepted by: ${report.acceptedByName} · ${formatDateTime(report.acceptedAt)}' : ''}'
             '${report.handledByName != null ? '\nHandled by: ${report.handledByName} · ${formatDateTime(report.handledAt)}' : ''}'
             '${report.completedByName != null ? '\nCompleted by: ${report.completedByName} · ${formatDateTime(report.completedAt)}' : ''}',
@@ -649,24 +650,82 @@ class _ReportsScreenState extends State<ReportsScreen> {
       );
     }
 
+    if (!report.repaired) {
+      if (report.workflowStatus == 'sent_to_itso' ||
+          report.workflowStatus == 'reopened') {
+        final position = report.queuePosition;
+        return _queueStatusChip(
+          position == 1
+              ? 'Queue #1 · Ready in Repair Queue'
+              : position != null
+                  ? 'Queue #$position · Waiting'
+                  : 'Waiting in FIFO Queue',
+          position == 1 ? Icons.looks_one_rounded : Icons.hourglass_top_rounded,
+        );
+      }
+
+      if (report.workflowStatus == 'reported') {
+        return _queueStatusChip('Teacher Review', Icons.rate_review_rounded);
+      }
+
+      if (report.workflowStatus == 'awaiting_teacher_approval') {
+        return _queueStatusChip('Awaiting Teacher', Icons.school_rounded);
+      }
+
+      if (report.workflowStatus == 'in_repair') {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            _actionButton(
+              label: 'Mark Repaired',
+              icon: Icons.check_circle_rounded,
+              color: _accentAForeground,
+              onTap: () => _showActionDialog(report, true),
+            ),
+          ],
+        );
+      }
+
+      return _queueStatusChip('Open Report', Icons.pending_actions_rounded);
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        if (!report.repaired)
-          _actionButton(
-            label: 'Mark Repaired',
-            icon: Icons.check_circle_rounded,
-            color: _accentAForeground,
-            onTap: () => _showActionDialog(report, true),
-          )
-        else
-          _actionButton(
-            label: 'Still Damaged',
-            icon: Icons.report_problem_rounded,
-            color: const Color(0xFFFF6B6B),
-            onTap: () => _showActionDialog(report, false),
-          ),
+        _actionButton(
+          label: 'Still Damaged',
+          icon: Icons.report_problem_rounded,
+          color: const Color(0xFFFF6B6B),
+          onTap: () => _showActionDialog(report, false),
+        ),
       ],
+    );
+  }
+
+  Widget _queueStatusChip(String label, IconData icon) {
+    final color = _accentAForeground;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
