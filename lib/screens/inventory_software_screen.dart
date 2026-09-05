@@ -1,7 +1,90 @@
 import 'package:flutter/material.dart';
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_selector/file_selector.dart';
 
+import '../models/room_record.dart';
+import '../services/exe_metadata_service.dart';
 import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
+
+enum _SoftwareSetupMethod { catalog, executable }
+
+class _SoftwarePreset {
+  const _SoftwarePreset({
+    required this.id,
+    required this.label,
+    this.softwareName = '',
+    this.matchText = '',
+    this.publisher = '',
+  });
+
+  final String id;
+  final String label;
+  final String softwareName;
+  final String matchText;
+  final String publisher;
+
+  bool get isCustom => id == 'custom';
+}
+
+const _softwarePresets = <_SoftwarePreset>[
+  _SoftwarePreset(id: 'custom', label: 'Custom software'),
+  _SoftwarePreset(
+    id: 'packet_tracer',
+    label: 'Cisco Packet Tracer',
+    softwareName: 'Cisco Packet Tracer',
+    matchText: 'Packet Tracer',
+    publisher: 'Cisco',
+  ),
+  _SoftwarePreset(
+    id: 'chrome',
+    label: 'Google Chrome',
+    softwareName: 'Google Chrome',
+    matchText: 'Google Chrome',
+    publisher: 'Google',
+  ),
+  _SoftwarePreset(
+    id: 'edge',
+    label: 'Microsoft Edge',
+    softwareName: 'Microsoft Edge',
+    matchText: 'Microsoft Edge',
+    publisher: 'Microsoft',
+  ),
+  _SoftwarePreset(
+    id: 'firefox',
+    label: 'Mozilla Firefox',
+    softwareName: 'Mozilla Firefox',
+    matchText: 'Mozilla Firefox',
+    publisher: 'Mozilla',
+  ),
+  _SoftwarePreset(
+    id: 'vscode',
+    label: 'Visual Studio Code',
+    softwareName: 'Visual Studio Code',
+    matchText: 'Visual Studio Code',
+    publisher: 'Microsoft',
+  ),
+  _SoftwarePreset(
+    id: 'android_studio',
+    label: 'Android Studio',
+    softwareName: 'Android Studio',
+    matchText: 'Android Studio',
+    publisher: 'Google',
+  ),
+  _SoftwarePreset(
+    id: 'xampp',
+    label: 'XAMPP',
+    softwareName: 'XAMPP',
+    matchText: 'XAMPP',
+    publisher: 'Apache Friends',
+  ),
+  _SoftwarePreset(
+    id: 'java',
+    label: 'Java Runtime / JDK',
+    softwareName: 'Java',
+    matchText: 'Java',
+  ),
+];
 
 class InventorySoftwareScreen extends StatefulWidget {
   const InventorySoftwareScreen({super.key});
@@ -58,120 +141,623 @@ class _InventorySoftwareScreenState extends State<InventorySoftwareScreen>
   // ---------------------------------------------------------------------
 
   Future<void> _addRequiredSoftware() async {
-    final room = TextEditingController();
+    List<RoomRecord> availableRooms;
+    try {
+      availableRooms = (await StaffService.instance.listRooms())
+          .where((room) => room.active)
+          .toList()
+        ..sort((a, b) => a.roomName.compareTo(b.roomName));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load rooms: ${cleanError(error)}')),
+        );
+      }
+      return;
+    }
+
+    if (availableRooms.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Create and activate at least one room first.'),
+          ),
+        );
+      }
+      return;
+    }
+
     final name = TextEditingController();
     final version = TextEditingController();
     final publisher = TextEditingController();
     final pattern = TextEditingController();
+    final roomSearch = TextEditingController();
     final key = GlobalKey<FormState>();
+    final selectedRooms = <String>{};
+    var setupMethod = _SoftwareSetupMethod.catalog;
+    var selectedPreset = _softwarePresets.first.id;
+    ExeMetadata? importedExe;
+    String? importError;
+    var saving = false;
+    var importing = false;
+    var dragging = false;
+    var roomSelectionInvalid = false;
 
-    final saved = await showDialog<bool>(
+    final savedCount = await showDialog<int>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Row(
-          children: const [
-            Icon(Icons.playlist_add_check_rounded),
-            SizedBox(width: 10),
-            Text('Add required software'),
-          ],
-        ),
-        content: SizedBox(
-          width: 460,
-          child: Form(
-            key: key,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final search = roomSearch.text.trim().toLowerCase();
+          final visibleRooms = search.isEmpty
+              ? availableRooms
+              : availableRooms
+                  .where(
+                    (room) => room.roomName.toLowerCase().contains(search),
+                  )
+                  .toList();
+
+          void applyPreset(String id) {
+            final preset = _softwarePresets.firstWhere((item) => item.id == id);
+            setDialogState(() {
+              selectedPreset = id;
+              importedExe = null;
+              importError = null;
+              name.text = preset.softwareName;
+              pattern.text = preset.matchText;
+              publisher.text = preset.publisher;
+              version.clear();
+            });
+          }
+
+          Future<void> inspectExe(String path) async {
+            if (saving || importing) return;
+            setDialogState(() {
+              importing = true;
+              dragging = false;
+              importError = null;
+            });
+            try {
+              final metadata =
+                  await ExeMetadataService.instance.inspect(path);
+              if (!dialogContext.mounted) return;
+              setDialogState(() {
+                importedExe = metadata;
+                selectedPreset = _softwarePresets.first.id;
+                name.text = metadata.displayName;
+                pattern.text = metadata.suggestedMatchText;
+                publisher.text = metadata.publisher;
+                version.text = metadata.suggestedMinimumVersion;
+              });
+            } catch (error) {
+              if (!dialogContext.mounted) return;
+              setDialogState(() {
+                importedExe = null;
+                importError = cleanError(error);
+              });
+            } finally {
+              if (dialogContext.mounted) {
+                setDialogState(() => importing = false);
+              }
+            }
+          }
+
+          Future<void> browseForExe() async {
+            if (saving || importing) return;
+            try {
+              const executableFiles = XTypeGroup(
+                label: 'Windows applications',
+                extensions: <String>['exe'],
+              );
+              final file = await openFile(
+                acceptedTypeGroups: const <XTypeGroup>[executableFiles],
+              );
+              if (file != null) await inspectExe(file.path);
+            } catch (error) {
+              if (dialogContext.mounted) {
+                setDialogState(() => importError = cleanError(error));
+              }
+            }
+          }
+
+          Future<void> save() async {
+            if (setupMethod == _SoftwareSetupMethod.executable &&
+                importedExe == null) {
+              setDialogState(
+                () => importError = 'Drop or browse for one EXE file first.',
+              );
+              return;
+            }
+
+            final formValid = key.currentState?.validate() ?? false;
+            if (selectedRooms.isEmpty) {
+              setDialogState(() => roomSelectionInvalid = true);
+            }
+            if (saving ||
+                importing ||
+                !formValid ||
+                selectedRooms.isEmpty) {
+              return;
+            }
+
+            setDialogState(() => saving = true);
+            try {
+              final count = await StaffService.instance
+                  .saveRequiredSoftwareForRooms(
+                roomNames: selectedRooms,
+                softwareName: name.text,
+                minimumVersion: version.text,
+                publisher: publisher.text,
+                matchPattern: pattern.text,
+              );
+              if (dialogContext.mounted) Navigator.pop(dialogContext, count);
+            } catch (error) {
+              if (dialogContext.mounted) {
+                setDialogState(() => saving = false);
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  SnackBar(content: Text(cleanError(error))),
+                );
+              }
+            }
+          }
+
+          final busy = saving || importing;
+          return AlertDialog(
+            title: const Row(
               children: [
-                const _DialogSectionLabel('What to check'),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: room,
-                  decoration: const InputDecoration(
-                    labelText: 'Room',
-                    hintText: 'e.g. Lab 204',
-                    prefixIcon: Icon(Icons.meeting_room_outlined),
-                  ),
-                  validator: (v) => (v ?? '').trim().isEmpty ? 'Enter a room.' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: name,
-                  decoration: const InputDecoration(
-                    labelText: 'Software name',
-                    hintText: 'e.g. Google Chrome',
-                    prefixIcon: Icon(Icons.apps_rounded),
-                  ),
-                  validator: (v) => (v ?? '').trim().isEmpty ? 'Enter the software name.' : null,
-                ),
-                const SizedBox(height: 20),
-                const _DialogSectionLabel('Optional matching rules'),
-                const SizedBox(height: 4),
-                const Text(
-                  'Leave blank to accept any version or publisher.',
-                  style: TextStyle(fontSize: 12.5, color: Colors.black54),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: version,
-                  decoration: const InputDecoration(
-                    labelText: 'Minimum version',
-                    prefixIcon: Icon(Icons.numbers_rounded),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: publisher,
-                  decoration: const InputDecoration(
-                    labelText: 'Publisher',
-                    prefixIcon: Icon(Icons.verified_outlined),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: pattern,
-                  decoration: const InputDecoration(
-                    labelText: 'Match pattern',
-                    helperText: 'Optional text/regex used to match scanned software names.',
-                    prefixIcon: Icon(Icons.rule_rounded),
-                  ),
-                ),
+                Icon(Icons.playlist_add_check_rounded),
+                SizedBox(width: 10),
+                Text('Add required software'),
               ],
             ),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton.icon(
-            icon: const Icon(Icons.save_rounded, size: 18),
-            label: const Text('Save'),
-            onPressed: () async {
-              if (!(key.currentState?.validate() ?? false)) return;
-              try {
-                await StaffService.instance.saveRequiredSoftware(
-                  roomName: room.text,
-                  softwareName: name.text,
-                  minimumVersion: version.text,
-                  publisher: publisher.text,
-                  matchPattern: pattern.text,
-                );
-                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
-              } catch (error) {
-                if (dialogContext.mounted) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text(cleanError(error))));
-                }
-              }
-            },
-          ),
-        ],
+            content: SizedBox(
+              width: 680,
+              child: Form(
+                key: key,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _DialogSectionLabel('1. Choose setup method'),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<_SoftwareSetupMethod>(
+                          showSelectedIcon: false,
+                          segments: const [
+                            ButtonSegment(
+                              value: _SoftwareSetupMethod.catalog,
+                              icon: Icon(Icons.list_alt_rounded),
+                              label: Text('Select from Software List'),
+                            ),
+                            ButtonSegment(
+                              value: _SoftwareSetupMethod.executable,
+                              icon: Icon(Icons.file_open_rounded),
+                              label: Text('Import from EXE'),
+                            ),
+                          ],
+                          selected: {setupMethod},
+                          onSelectionChanged: busy
+                              ? null
+                              : (selection) {
+                                  final next = selection.first;
+                                  setDialogState(() {
+                                    setupMethod = next;
+                                    importedExe = null;
+                                    importError = null;
+                                    if (next ==
+                                        _SoftwareSetupMethod.catalog) {
+                                      final preset = _softwarePresets.firstWhere(
+                                        (item) => item.id == selectedPreset,
+                                      );
+                                      name.text = preset.softwareName;
+                                      pattern.text = preset.matchText;
+                                      publisher.text = preset.publisher;
+                                      version.clear();
+                                    } else {
+                                      selectedPreset =
+                                          _softwarePresets.first.id;
+                                      name.clear();
+                                      pattern.clear();
+                                      publisher.clear();
+                                      version.clear();
+                                    }
+                                  });
+                                },
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      if (setupMethod == _SoftwareSetupMethod.catalog) ...[
+                        DropdownButtonFormField<String>(
+                          value: selectedPreset,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Software list',
+                            prefixIcon: Icon(Icons.apps_rounded),
+                          ),
+                          items: _softwarePresets
+                              .map(
+                                (preset) => DropdownMenuItem<String>(
+                                  value: preset.id,
+                                  child: Text(preset.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: busy
+                              ? null
+                              : (value) {
+                                  if (value != null) applyPreset(value);
+                                },
+                        ),
+                      ] else ...[
+                        DropTarget(
+                          onDragEntered: (_) {
+                            if (!busy) {
+                              setDialogState(() => dragging = true);
+                            }
+                          },
+                          onDragExited: (_) {
+                            if (dragging) {
+                              setDialogState(() => dragging = false);
+                            }
+                          },
+                          onDragDone: (details) {
+                            if (busy) return;
+                            if (details.files.length != 1) {
+                              setDialogState(() {
+                                dragging = false;
+                                importError =
+                                    'Drop exactly one Windows EXE file.';
+                              });
+                              return;
+                            }
+                            inspectExe(details.files.single.path);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 140),
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 20,
+                            ),
+                            decoration: BoxDecoration(
+                              color: dragging
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerLow,
+                              border: Border.all(
+                                width: dragging ? 2 : 1,
+                                color: importError != null
+                                    ? Theme.of(context).colorScheme.error
+                                    : dragging
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context).dividerColor,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Column(
+                              children: [
+                                if (importing)
+                                  const SizedBox(
+                                    width: 34,
+                                    height: 34,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                    ),
+                                  )
+                                else
+                                  Icon(
+                                    importedExe == null
+                                        ? Icons.drive_folder_upload_rounded
+                                        : Icons.check_circle_rounded,
+                                    size: 40,
+                                    color: importedExe == null
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Colors.green.shade700,
+                                  ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  importing
+                                      ? 'Reading Windows file metadata...'
+                                      : importedExe == null
+                                          ? 'Drag and drop one .exe file here'
+                                          : importedExe!.fileName,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  importedExe == null
+                                      ? 'or use Browse EXE below'
+                                      : 'Metadata loaded. Review the detection rules below.',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed: busy ? null : browseForExe,
+                                  icon: const Icon(Icons.folder_open_rounded),
+                                  label: Text(
+                                    importedExe == null
+                                        ? 'Browse EXE'
+                                        : 'Choose another EXE',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        const Text(
+                          'Syswatch reads the embedded product details only. The EXE is not uploaded, installed, or started.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        if (importError != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            importError!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: name,
+                        enabled: !busy,
+                        decoration: const InputDecoration(
+                          labelText: 'Software name shown to ITSO',
+                          hintText: 'e.g. Cisco Packet Tracer',
+                          prefixIcon: Icon(Icons.label_rounded),
+                        ),
+                        validator: (value) => (value ?? '').trim().isEmpty
+                            ? 'Enter the software name.'
+                            : null,
+                        onChanged: (_) {
+                          if (setupMethod == _SoftwareSetupMethod.catalog &&
+                              selectedPreset != _softwarePresets.first.id) {
+                            setDialogState(
+                              () => selectedPreset = _softwarePresets.first.id,
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 22),
+                      const _DialogSectionLabel('2. Select affected rooms'),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Text(
+                            '${selectedRooms.length} of ${availableRooms.length} selected',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: busy
+                                ? null
+                                : () => setDialogState(() {
+                                      selectedRooms
+                                        ..clear()
+                                        ..addAll(
+                                          availableRooms.map(
+                                            (room) => room.roomName,
+                                          ),
+                                        );
+                                      roomSelectionInvalid = false;
+                                    }),
+                            child: const Text('Select all'),
+                          ),
+                          TextButton(
+                            onPressed: busy
+                                ? null
+                                : () => setDialogState(() {
+                                      selectedRooms.clear();
+                                      roomSelectionInvalid = false;
+                                    }),
+                            child: const Text('Clear'),
+                          ),
+                        ],
+                      ),
+                      TextField(
+                        controller: roomSearch,
+                        enabled: !busy,
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          hintText: 'Search rooms',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 150),
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: roomSelectionInvalid
+                                ? Theme.of(context).colorScheme.error
+                                : Theme.of(context).dividerColor,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: visibleRooms.isEmpty
+                            ? const Center(child: Text('No rooms match.'))
+                            : SingleChildScrollView(
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: visibleRooms.map((room) {
+                                    final selected =
+                                        selectedRooms.contains(room.roomName);
+                                    return FilterChip(
+                                      selected: selected,
+                                      label: Text(room.roomName),
+                                      avatar: Icon(
+                                        selected
+                                            ? Icons.check_rounded
+                                            : Icons.meeting_room_outlined,
+                                        size: 17,
+                                      ),
+                                      onSelected: busy
+                                          ? null
+                                          : (value) => setDialogState(() {
+                                                if (value) {
+                                                  selectedRooms
+                                                      .add(room.roomName);
+                                                } else {
+                                                  selectedRooms
+                                                      .remove(room.roomName);
+                                                }
+                                                roomSelectionInvalid = false;
+                                              }),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                      ),
+                      if (roomSelectionInvalid) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Select at least one room.',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 22),
+                      const _DialogSectionLabel('3. Review detection rules'),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'These values can be corrected before saving. Matching is not case-sensitive.',
+                        style: TextStyle(fontSize: 12.5, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: pattern,
+                        enabled: !busy,
+                        decoration: const InputDecoration(
+                          labelText: 'Installed name contains',
+                          hintText: 'e.g. Packet Tracer',
+                          helperText:
+                              'Use a stable part of the name; do not include the version.',
+                          prefixIcon: Icon(Icons.manage_search_rounded),
+                        ),
+                        validator: (value) => (value ?? '').trim().isEmpty
+                            ? 'Enter text used to identify the installed app.'
+                            : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: publisher,
+                        enabled: !busy,
+                        decoration: const InputDecoration(
+                          labelText: 'Publisher contains (optional)',
+                          hintText: 'e.g. Cisco',
+                          prefixIcon: Icon(Icons.verified_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: version,
+                        enabled: !busy,
+                        decoration: const InputDecoration(
+                          labelText: 'Minimum version (optional)',
+                          hintText: 'Leave blank to accept any version',
+                          prefixIcon: Icon(Icons.numbers_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withOpacity(0.35),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline_rounded, size: 19),
+                            SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                'EXE import creates the same installed-software rule used by the Student Agent. If the Windows installed-app name is different, edit “Installed name contains” before saving.',
+                                style: TextStyle(fontSize: 12.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: busy ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                onPressed: busy ? null : save,
+                icon: busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_rounded, size: 18),
+                label: Text(
+                  saving
+                      ? 'Saving...'
+                      : importing
+                          ? 'Reading EXE...'
+                          : 'Save to ${selectedRooms.length} room${selectedRooms.length == 1 ? '' : 's'}',
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
-    room.dispose();
     name.dispose();
     version.dispose();
     publisher.dispose();
     pattern.dispose();
-    if (saved == true) _refresh();
+    roomSearch.dispose();
+    if (savedCount != null && mounted) {
+      _refresh();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Required software added to $savedCount room${savedCount == 1 ? '' : 's'}.',
+          ),
+        ),
+      );
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -214,6 +800,7 @@ class _InventorySoftwareScreenState extends State<InventorySoftwareScreen>
             final compliance = data.length > 1 ? data[1] as List<Map<String, dynamic>> : <Map<String, dynamic>>[];
             final required = data.length > 2 ? data[2] as List<Map<String, dynamic>> : <Map<String, dynamic>>[];
             final issues = compliance.where((r) => !_isCompliant((r['status'] ?? 'unknown').toString())).length;
+            final requirementGroups = _groupRequiredSoftware(required);
             return Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Wrap(
@@ -227,7 +814,11 @@ class _InventorySoftwareScreenState extends State<InventorySoftwareScreen>
                     value: issues == 0 ? '' : '$issues',
                     emphasize: issues > 0,
                   ),
-                  _StatChip(icon: Icons.rule_rounded, label: 'Required rules', value: '${required.length}'),
+                  _StatChip(
+                    icon: Icons.rule_rounded,
+                    label: 'Required software',
+                    value: '${requirementGroups.length}',
+                  ),
                 ],
               ),
             );
@@ -430,14 +1021,94 @@ class _InventorySoftwareScreenState extends State<InventorySoftwareScreen>
   // Required Software tab
   // ---------------------------------------------------------------------
 
+  List<_RequiredSoftwareGroup> _groupRequiredSoftware(
+    List<Map<String, dynamic>> rows,
+  ) {
+    final grouped = <String, _RequiredSoftwareGroup>{};
+    for (final row in rows) {
+      String normalized(dynamic value) =>
+          (value ?? '').toString().trim().toLowerCase();
+      final key = <String>[
+        normalized(row['software_name']),
+        normalized(row['minimum_version']),
+        normalized(row['publisher']),
+        normalized(row['match_pattern']),
+      ].join('|');
+      grouped.putIfAbsent(key, () => _RequiredSoftwareGroup(row)).add(row);
+    }
+    final result = grouped.values.toList()
+      ..sort(
+        (a, b) => a.softwareName
+            .toLowerCase()
+            .compareTo(b.softwareName.toLowerCase()),
+      );
+    return result;
+  }
+
+  Future<void> _deleteRequiredSoftwareGroup(
+    _RequiredSoftwareGroup group,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove required software?'),
+        content: Text(
+          '${group.softwareName} will be removed from '
+          '${group.rooms.length} room${group.rooms.length == 1 ? '' : 's'}: '
+          '${group.rooms.join(', ')}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      for (final id in group.ids) {
+        await StaffService.instance.deleteRequiredSoftware(id);
+      }
+      if (!mounted) return;
+      _refresh();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${group.softwareName} removed from ${group.rooms.length} room${group.rooms.length == 1 ? '' : 's'}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(cleanError(error))),
+        );
+        _refresh();
+      }
+    }
+  }
+
   Widget _requiredTab(List<Map<String, dynamic>> rows) {
     final query = _requiredSearch.text.trim().toLowerCase();
+    final groups = _groupRequiredSoftware(rows);
     final filtered = query.isEmpty
-        ? rows
-        : rows.where((r) {
-      final haystack = [r['room_name'], r['software_name']].map((v) => (v ?? '').toString().toLowerCase()).join(' ');
-      return haystack.contains(query);
-    }).toList();
+        ? groups
+        : groups.where((group) {
+            final haystack = <String>[
+              group.softwareName,
+              group.rooms.join(' '),
+              (group.row['publisher'] ?? '').toString(),
+              (group.row['match_pattern'] ?? '').toString(),
+            ].join(' ').toLowerCase();
+            return haystack.contains(query);
+          }).toList();
 
     return Column(
       children: [
@@ -463,19 +1134,15 @@ class _InventorySoftwareScreenState extends State<InventorySoftwareScreen>
                 child: Wrap(
                   spacing: 12,
                   runSpacing: 12,
-                  children: filtered.map((r) => _RequiredCard(
-                    row: r,
-                    onDelete: () async {
-                      try {
-                        await StaffService.instance.deleteRequiredSoftware((r['id'] as num).toInt());
-                        _refresh();
-                      } catch (error) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(cleanError(error))));
-                        }
-                      }
-                    },
-                  )).toList(),
+                  children: filtered
+                      .map(
+                        (group) => _RequiredCard(
+                          group: group,
+                          onDelete: () =>
+                              _deleteRequiredSoftwareGroup(group),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
             ),
@@ -483,6 +1150,30 @@ class _InventorySoftwareScreenState extends State<InventorySoftwareScreen>
         ),
       ],
     );
+  }
+}
+
+class _RequiredSoftwareGroup {
+  _RequiredSoftwareGroup(this.row);
+
+  final Map<String, dynamic> row;
+  final Map<String, int> _roomIds = <String, int>{};
+
+  String get softwareName =>
+      (row['software_name'] ?? 'Unnamed software').toString();
+
+  List<String> get rooms {
+    final values = _roomIds.keys.toList()..sort();
+    return values;
+  }
+
+  List<int> get ids => _roomIds.values.toList();
+
+  void add(Map<String, dynamic> source) {
+    final id = int.tryParse((source['id'] ?? '').toString());
+    if (id == null || id <= 0) return;
+    final room = (source['room_name'] ?? '').toString().trim();
+    _roomIds[room.isEmpty ? 'All rooms' : room] = id;
   }
 }
 
@@ -771,13 +1462,14 @@ class _ComplianceCard extends StatelessWidget {
 // ===========================================================================
 
 class _RequiredCard extends StatelessWidget {
-  const _RequiredCard({required this.row, required this.onDelete});
-  final Map<String, dynamic> row;
+  const _RequiredCard({required this.group, required this.onDelete});
+  final _RequiredSoftwareGroup group;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final r = row;
+    final r = group.row;
+    final rooms = group.rooms;
     return SizedBox(
       width: 380,
       child: Card(
@@ -802,7 +1494,7 @@ class _RequiredCard extends StatelessWidget {
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
-              'Required for ${r['room_name']}',
+              'Required in ${rooms.length} room${rooms.length == 1 ? '' : 's'}',
               style: const TextStyle(fontSize: 12.5, color: Colors.black54, fontWeight: FontWeight.w500),
             ),
           ),
@@ -810,10 +1502,10 @@ class _RequiredCard extends StatelessWidget {
           children: [
             const Divider(height: 1),
             const SizedBox(height: 14),
-            _kv('Room', r['room_name']),
+            _kv('Rooms', rooms.join(', ')),
             _kv('Min version', r['minimum_version']),
             _kv('Publisher', r['publisher']),
-            _kv('Match pattern', r['match_pattern']),
+            _kv('Installed name contains', r['match_pattern']),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -826,7 +1518,7 @@ class _RequiredCard extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 icon: const Icon(Icons.delete_outline_rounded, size: 19),
-                label: const Text('Remove requirement', style: TextStyle(fontWeight: FontWeight.w700)),
+                label: const Text('Remove from all listed rooms', style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
           ],

@@ -605,6 +605,57 @@ class StaffService {
     });
   }
 
+  /// Creates the same requirement for every selected room using the existing
+  /// API contract. This keeps the feature compatible with current Syswatch
+  /// servers while removing the need to submit the form one room at a time.
+  Future<int> saveRequiredSoftwareForRooms({
+    required Iterable<String> roomNames,
+    required String softwareName,
+    String publisher = '',
+    String minimumVersion = '',
+    String matchPattern = '',
+  }) async {
+    final rooms = roomNames
+        .map((room) => room.trim())
+        .where((room) => room.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final cleanName = softwareName.trim();
+    final cleanPattern = matchPattern.trim();
+
+    if (rooms.isEmpty) {
+      throw Exception('Select at least one room.');
+    }
+    if (cleanName.isEmpty) {
+      throw Exception('Enter the software name.');
+    }
+    if (cleanPattern.isEmpty) {
+      throw Exception('Enter text used to identify the installed app.');
+    }
+
+    var saved = 0;
+    for (final roomName in rooms) {
+      try {
+        await saveRequiredSoftware(
+          roomName: roomName,
+          softwareName: cleanName,
+          publisher: publisher,
+          minimumVersion: minimumVersion,
+          matchPattern: cleanPattern,
+        );
+        saved++;
+      } catch (error) {
+        throw Exception(
+          saved == 0
+              ? 'Could not save the requirement for room $roomName: $error'
+              : 'Saved $saved of ${rooms.length} rooms. Room $roomName failed: $error',
+        );
+      }
+    }
+    return saved;
+  }
+
   Future<void> deleteRequiredSoftware(int id) async {
     await ApiClient.instance.postJson(ApiEndpoints.requiredSoftware, body: {'action': 'delete', 'id': id});
   }
