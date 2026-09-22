@@ -15,10 +15,9 @@ import 'windows_account_service.dart';
 /// secret, or authentication token. It only reads non-secret identity details
 /// exposed by the already signed-in Windows session.
 ///
-/// Automatic session recording itself never trusts the Windows username as an
-/// authentication factor. Automatic Teacher dashboard access is allowed only
-/// after a prior successful Teacher Syswatch password login created a random
-/// per-Windows-profile proof secret. Admin/Super Admin never use this path.
+/// The Windows identity is recorded as the real person using the shared
+/// SysWatch Teacher account. It is not required to match the Teacher account
+/// email and the PC does not need to determine the Teacher room.
 class TeacherWindowsSessionService {
   TeacherWindowsSessionService._();
 
@@ -39,10 +38,8 @@ class TeacherWindowsSessionService {
 
   /// Starts automatic Teacher Windows-account recording in the background.
   ///
-  /// If the Windows identity has not been linked to a Syswatch Teacher yet,
-  /// this quietly retries. The first successful Teacher Syswatch login links
-  /// the Windows identity so future Windows sign-ins can be recorded without
-  /// waiting for the Teacher to type Syswatch credentials.
+  /// The signed-in Windows identity is recorded automatically. No Teacher
+  /// password is collected here.
   Future<void> start() async {
     if (_started || !Platform.isWindows) return;
     _started = true;
@@ -62,19 +59,12 @@ class TeacherWindowsSessionService {
     return _account;
   }
 
-  /// Attempts a secure automatic Teacher dashboard login for the current
-  /// Windows profile. This requires BOTH the current Windows identity and the
-  /// random auto-login secret created by a previous successful Teacher
-  /// Syswatch password login on this Windows profile.
-  ///
-  /// Admin/Super Admin accounts never use this path. If there is no verified
-  /// Teacher link, the method returns null and the normal Staff login screen is
-  /// shown.
+  /// Automatically opens the Teacher session from the already signed-in
+  /// Windows account. No SysWatch email/password form is used by the Teacher
+  /// application. The server opens the configured/shared active Teacher
+  /// account and records this Windows identity as the person using it.
   Future<AppUser?> tryAutomaticTeacherLogin() async {
     if (!Platform.isWindows) return null;
-
-    final secret = AppConfigService.instance.teacherAutoLoginSecret.trim();
-    if (secret.isEmpty) return null;
 
     try {
       await _readAccountSafely(force: true);
@@ -86,13 +76,16 @@ class TeacherWindowsSessionService {
       final response = await ApiClient.instance.postJson(
         ApiEndpoints.teacherWindowsAutoLogin,
         authenticated: false,
-        body: {
-          ...body,
-          'auto_login_secret': secret,
-        },
+        body: body,
       );
 
-      if (response['matched'] != true) return null;
+      if (response['matched'] != true) {
+        final message = (response['message'] ??
+                'No active SysWatch Teacher account is available.')
+            .toString()
+            .trim();
+        throw Exception(message);
+      }
       final rawUser = response['user'];
       if (rawUser is! Map) return null;
 
@@ -132,23 +125,11 @@ class TeacherWindowsSessionService {
 
       return user;
     } on ApiRequestException catch (error) {
-      // A revoked/rotated link should not lock the shared Staff application.
-      // Remove the local proof and fall back to the normal Admin/Teacher login.
-      if (error.statusCode == 401 ||
-          error.code == 'teacher_auto_login_invalid' ||
-          error.code == 'teacher_windows_not_linked') {
-        await AppConfigService.instance.clearTeacherAutoLoginSecret();
-      }
-      return null;
-    } catch (_) {
-      // Offline or discovery failure: Staff/Admin login remains available.
-      return null;
+      throw Exception(error.message);
     }
   }
 
-  /// Called after a successful Teacher Syswatch login. The server has now had
-  /// a trusted opportunity to link this Windows identity to that Teacher, so
-  /// retry the automatic Windows-session record immediately.
+  /// Compatibility helper retained for older callers.
   Future<void> ensureRecordedAfterTeacherLogin() async {
     if (!Platform.isWindows) return;
     if (!_started) {
@@ -225,8 +206,7 @@ class TeacherWindowsSessionService {
         (_) => unawaited(_heartbeat()),
       );
     } on ApiRequestException catch (error) {
-      // teacher_windows_not_linked is expected before the first trusted
-      // Teacher login. All failures remain background-only and are retried.
+      // Missing Teacher setup remains background-only and is retried.
       if (error.code == 'teacher_windows_not_linked' ||
           error.code == 'teacher_not_found') {
         return;

@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 import '../models/app_user.dart';
 import '../models/fault_report.dart';
 import '../models/lab_overview.dart';
-import '../services/staff_service.dart';
+import '../services/teacher_service.dart';
+import '../services/teacher_windows_session_service.dart';
 import '../services/native_image_picker_service.dart';
 import '../utils/value_helpers.dart';
 import '../widgets/theme_toggle_button.dart';
-import 'staff_login_screen.dart';
 import 'teacher_chat_screen.dart';
 
 const _teacherProblemOptions = <_TeacherProblemOption>[
@@ -151,12 +151,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   void _refresh() {
     if (!mounted || _loggingOut) return;
-    unawaited(StaffService.instance.heartbeatStaffSession().catchError((_) {}));
+    unawaited(TeacherService.instance.heartbeatSession().catchError((_) {}));
 
     setState(() {
       _future = Future.wait<dynamic>([
-        StaffService.instance.teacherOverview(),
-        StaffService.instance.listTeacherReports(),
+        TeacherService.instance.overview(),
+        TeacherService.instance.listReports(),
       ]).then((values) {
         return (values[0] as LabOverview, values[1] as List<FaultReport>);
       });
@@ -167,25 +167,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     if (_loggingOut) return;
 
     setState(() => _loggingOut = true);
-
-    // Stop periodic rebuilds before the Teacher dashboard route is removed.
     _timer?.cancel();
     _timer = null;
 
     try {
-      await StaffService.instance.logout();
+      await TeacherService.instance.logout();
     } catch (_) {
-      // Still return to the local login screen if the server is unavailable.
+      // The Teacher app can still close when the local server is unavailable.
     }
 
-    if (!mounted) return;
-
-    FocusManager.instance.primaryFocus?.unfocus();
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const StaffLoginScreen()),
-      (_) => false,
-    );
+    // This is a Windows-account driven app. Keep the secure Teacher/Windows
+    // profile link for the next launch, clear only the short-lived API session,
+    // and close the normal desktop window instead of showing an Admin login.
+    exit(0);
   }
 
   Color _conditionColor(String value) {
@@ -297,6 +291,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Widget _topBar() {
     final room = widget.user.assignedRoomName ?? 'Unassigned';
+
+    // Show the real Windows user currently using this shared Teacher account.
+    // The SysWatch Teacher account (for example teacher706) is still used for
+    // permissions/room access, but it is not shown as the person using the PC.
+    final windowsAccount = TeacherWindowsSessionService.instance.cachedAccount;
+    final currentUserDisplayName = windowsAccount?.displayLabel ??
+        widget.user.displayName;
+
     final navBg = _dark ? _card.withValues(alpha: 0.96) : _accentB;
     final navFg = _dark ? _text : Colors.white;
     final navSub = _dark ? _sub : Colors.white70;
@@ -384,7 +386,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  widget.user.displayName,
+                  currentUserDisplayName,
                   style: TextStyle(
                     color: _dark ? navFg : Colors.black87,
                     fontSize: 12.8,
@@ -411,7 +413,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             icon: _loggingOut
                 ? Icons.hourglass_top_rounded
                 : Icons.logout_rounded,
-            tooltip: 'Sign out',
+            tooltip: 'Close Teacher App',
             onPressed: _loggingOut ? null : _logout,
           ),
         ],
@@ -501,8 +503,25 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
+  List<FaultReport> _reportsForPc(
+    LabWorkstation pc,
+    List<FaultReport> reports,
+  ) {
+    final workstationId = pc.workstationId.trim().toLowerCase();
+    final pcId = pc.pcId.trim().toLowerCase();
+    return reports.where((report) {
+      final reportWorkstationId = report.workstationId.trim().toLowerCase();
+      final reportPcId = report.pcId.trim().toLowerCase();
+      return (workstationId.isNotEmpty && reportWorkstationId == workstationId) ||
+          (pcId.isNotEmpty && reportPcId == pcId);
+    }).toList();
+  }
+
   Widget _content(LabOverview room, List<FaultReport> reports) {
-    final openReports = reports.where((report) => !report.repaired).toList();
+    final openReports = reports.where((report) => !report.repaired && report.workflowStatus != 'resolved').toList();
+    final resolvedReports = reports.where((report) => report.repaired || report.workflowStatus == 'resolved').toList();
+    final reportableWorkstations =
+        room.workstations.where((pc) => pc.canReport).toList();
     final color = _conditionColor(room.maintenanceColor);
 
     return RefreshIndicator(
@@ -522,22 +541,26 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   _sectionCard(
                     icon: Icons.grid_view_rounded,
                     title: 'Lab Map',
-                    subtitle: 'Select a workstation to view its current condition.',
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        for (final pc in room.workstations)
-                          SizedBox(
-                            width: 140,
-                            height: 140,
-                            child: _pcTile(
-                              pc,
-                              reports.where((r) => r.workstationId == pc.workstationId && !r.repaired).toList(),
-                            ),
+                    subtitle: room.workstations.isEmpty
+                        ? 'No PC slots are configured for Laboratory ${room.roomName}.'
+                        : 'Select any PC to view its reports. Unregistered slots remain visible until the Student PC registers.',
+                    child: room.workstations.isEmpty
+                        ? _emptyLabMap(room)
+                        : Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              for (final pc in room.workstations)
+                                SizedBox(
+                                  width: 140,
+                                  height: 140,
+                                  child: _pcTile(
+                                    pc,
+                                    _reportsForPc(pc, reports),
+                                  ),
+                                ),
+                            ],
                           ),
-                      ],
-                    ),
                   ),
                   const SizedBox(height: 18),
                   _sectionCard(
@@ -545,27 +568,94 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     title: 'Room Reports',
                     subtitle: openReports.isEmpty
                         ? 'No unresolved reports in Laboratory ${room.roomName}.'
-                        : '${openReports.length} unresolved report${openReports.length == 1 ? '' : 's'} need attention.',
+                        : '${openReports.length} unresolved report${openReports.length == 1 ? '' : 's'} need attention. Click a report to open its details.',
                     trailing: _gradientButton(
                       label: 'Report Damaged PC',
                       icon: Icons.support_agent_rounded,
-                      onPressed: room.workstations.isEmpty
-                          ? null
-                          : () => _showCreateReport(room),
+                      onPressed: () {
+                        if (reportableWorkstations.isEmpty) {
+                          _showNoRegisteredPcDialog(room);
+                        } else {
+                          _showCreateReport(room);
+                        }
+                      },
                     ),
                     child: openReports.isEmpty
                         ? _emptyReports()
                         : Column(
-                      children: [
-                        for (final report in openReports)
-                          _reportCard(report),
-                      ],
-                    ),
+                            children: [
+                              for (final report in openReports)
+                                _reportCard(report),
+                            ],
+                          ),
                   ),
+                  if (resolvedReports.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    _sectionCard(
+                      icon: Icons.history_rounded,
+                      title: 'Report History',
+                      subtitle:
+                          '${resolvedReports.length} resolved report${resolvedReports.length == 1 ? '' : 's'}. Click any report to view the complete history.',
+                      child: Column(
+                        children: [
+                          for (final report in resolvedReports.take(100))
+                            _reportCard(report),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyLabMap(LabOverview room) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+      decoration: BoxDecoration(
+        color: _field.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.desktop_access_disabled_rounded, color: _sub, size: 34),
+          const SizedBox(height: 10),
+          Text(
+            'No PC slots available',
+            style: TextStyle(color: _text, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Set the PC count for Laboratory ${room.roomName} in the Admin app, or register Student PCs in this room.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _sub, fontSize: 12.2, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showNoRegisteredPcDialog(LabOverview room) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _card,
+        shape: _dialogShape,
+        title: _dialogTitle('No PC Slot Available', Icons.desktop_access_disabled_rounded),
+        content: SizedBox(
+          width: 430,
+          child: Text(
+            'Laboratory ${room.roomName} is accessible, but it has no PC slot to report against. Set the room PC count in the Admin app or register a Student PC in Laboratory ${room.roomName}. Existing reports remain accessible.',
+            style: TextStyle(color: _sub, fontSize: 13, height: 1.5),
+          ),
+        ),
+        actions: [
+          _dialogCancelButton(() => Navigator.pop(dialogContext)),
         ],
       ),
     );
@@ -641,7 +731,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Widget _roomHeader(LabOverview room, Color color) {
     final healthy = room.maintenanceColor == 'green';
     final warning = room.maintenanceColor == 'yellow';
-    final statusText = healthy
+    final statusText = room.unregisteredPcCount > 0 && healthy
+        ? '${room.unregisteredPcCount} PC slot${room.unregisteredPcCount == 1 ? '' : 's'} are not registered yet. Existing reports and room slots remain accessible.'
+        : healthy
         ? 'All reported checks are clear.'
         : warning
         ? 'The room has 1–3 active minor problems.'
@@ -729,6 +821,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           ),
           _metric('Online', room.onlinePcCount, const Color(0xFF22A06B)),
           _metric('Offline', room.offlinePcCount, Colors.blueGrey),
+          if (room.unregisteredPcCount > 0)
+            _metric('Unreg.', room.unregisteredPcCount, const Color(0xFF8A8F98)),
           _metric('Problems', room.activeProblemCount, color),
           _metric(
             'Approve',
@@ -777,8 +871,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Widget _pcTile(LabWorkstation pc, List<FaultReport> pcReports) {
     final maintenanceColor = _conditionColor(pc.maintenanceColor);
-    final statusColor = pc.isOnline ? maintenanceColor : Colors.blueGrey;
-    final connectionColor = pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey;
+    final statusColor = pc.isRegistered
+        ? (pc.isOnline ? maintenanceColor : Colors.blueGrey)
+        : Colors.blueGrey;
+    final connectionColor = pc.isRegistered
+        ? (pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey)
+        : const Color(0xFF8A8F98);
+    final connectionLabel = !pc.isRegistered
+        ? 'UNREGISTERED'
+        : (pc.isOnline ? 'ONLINE' : 'OFFLINE');
 
     return Material(
       color: Colors.transparent,
@@ -789,7 +890,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           decoration: BoxDecoration(
             color: statusColor.withValues(alpha: _dark ? 0.08 : 0.04),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: statusColor.withValues(alpha: 0.48), width: 1.2),
+            border: Border.all(
+              color: statusColor.withValues(alpha: 0.48),
+              width: 1.2,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -803,11 +907,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     color: statusColor.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Icon(Icons.computer_rounded, color: statusColor, size: 24),
+                  child: Icon(
+                    pc.isRegistered
+                        ? Icons.computer_rounded
+                        : Icons.desktop_access_disabled_rounded,
+                    color: statusColor,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   pc.pcId,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: _text,
                     fontSize: 13.5,
@@ -816,11 +928,16 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 ),
                 const SizedBox(height: 7),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: connectionColor.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: connectionColor.withValues(alpha: 0.20)),
+                    border: Border.all(
+                      color: connectionColor.withValues(alpha: 0.20),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -834,18 +951,32 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         ),
                       ),
                       const SizedBox(width: 5),
-                      Text(
-                        pc.isOnline ? 'ONLINE' : 'OFFLINE',
-                        style: TextStyle(
-                          color: connectionColor,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.4,
+                      Flexible(
+                        child: Text(
+                          connectionLabel,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: connectionColor,
+                            fontSize: pc.isRegistered ? 9.5 : 8.3,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
+                if (pcReports.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '${pcReports.length} report${pcReports.length == 1 ? '' : 's'}',
+                    style: TextStyle(
+                      color: maintenanceColor,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -859,107 +990,361 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     final severityColor = _severityColor(report.severity);
     final workflow = _workflowLabel(report.workflowStatus);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: _field.withValues(alpha: _dark ? 0.74 : 0.84),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: _border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(15),
+          onTap: () => _showReportDetails(report),
+          child: Ink(
+            padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
-              color: severityColor.withValues(alpha: 0.11),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: severityColor.withValues(alpha: 0.20)),
+              color: _field.withValues(alpha: _dark ? 0.74 : 0.84),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: _border),
             ),
-            child: Icon(Icons.report_rounded, color: severityColor, size: 21),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  '${report.pcId} · ${report.issue}',
-                  style: TextStyle(
-                    color: _text,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: severityColor.withValues(alpha: 0.11),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: severityColor.withValues(alpha: 0.20),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.report_rounded,
+                    color: severityColor,
+                    size: 21,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  report.details,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: _sub, fontSize: 12, height: 1.35),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  'Reported: ${formatDateTime(report.createdAt)}'
-                  '${report.acceptedByName != null ? '\nAccepted by ITSO: ${report.acceptedByName} · ${formatDateTime(report.acceptedAt)}' : ''}'
-                  '${report.handledByName != null ? '\nHandled by ITSO: ${report.handledByName} · ${formatDateTime(report.handledAt)}' : ''}'
-                  '${report.completedByName != null ? '\nCompleted by ITSO: ${report.completedByName} · ${formatDateTime(report.completedAt)}' : ''}'
-                  '${report.repairedAt != null ? '\nITSO Fixed: ${formatDateTime(report.repairedAt)}' : ''}'
-                  '${report.teacherApprovedAt != null ? '\nTeacher Verified: ${formatDateTime(report.teacherApprovedAt)}' : ''}',
-                  style: TextStyle(
-                    color: _sub,
-                    fontSize: 11.2,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${report.pcId} · ${report.issue}',
+                              style: TextStyle(
+                                color: _text,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.open_in_new_rounded,
+                            size: 15,
+                            color: _sub,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        report.details,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _sub,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        'Reported: ${formatDateTime(report.createdAt)}'
+                        '${report.acceptedByName != null ? '\nAccepted by ITSO: ${report.acceptedByName} · ${formatDateTime(report.acceptedAt)}' : ''}'
+                        '${report.handledByName != null ? '\nHandled by ITSO: ${report.handledByName} · ${formatDateTime(report.handledAt)}' : ''}'
+                        '${report.completedByName != null ? '\nCompleted by ITSO: ${report.completedByName} · ${formatDateTime(report.completedAt)}' : ''}'
+                        '${report.repairedAt != null ? '\nITSO Fixed: ${formatDateTime(report.repairedAt)}' : ''}'
+                        '${report.teacherApprovedAt != null ? '\nTeacher Verified: ${formatDateTime(report.teacherApprovedAt)}' : ''}',
+                        style: TextStyle(
+                          color: _sub,
+                          fontSize: 11.2,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 5,
+                        children: [
+                          _statusChip(
+                            report.severity.toUpperCase(),
+                            severityColor,
+                          ),
+                          _statusChip(workflow, _accentBForeground),
+                          if (report.queuePosition != null)
+                            _statusChip(
+                              'QUEUE #${report.queuePosition}',
+                              const Color(0xFF8E6CEF),
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 5,
-                  children: [
-                    _statusChip(report.severity.toUpperCase(), severityColor),
-                    _statusChip(workflow, _accentBForeground),
-                  ],
-                ),
+                const SizedBox(width: 14),
+                if (busy)
+                  SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: _accentAForeground,
+                    ),
+                  )
+                else if (report.workflowStatus == 'reported' ||
+                    report.workflowStatus == 'reopened')
+                  _outlineAction(
+                    label: 'Send to ITSO',
+                    icon: Icons.send_rounded,
+                    onPressed: () => _showForwardDialog(report),
+                  )
+                else if (report.workflowStatus == 'awaiting_teacher_approval')
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      _outlineAction(
+                        label: 'Still Damaged',
+                        icon: Icons.close_rounded,
+                        onPressed: () => _showVerifyDialog(report, false),
+                      ),
+                      _gradientButton(
+                        label: 'PC is OK',
+                        icon: Icons.check_rounded,
+                        onPressed: () => _showVerifyDialog(report, true),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
-          const SizedBox(width: 14),
-          if (busy)
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showReportDetails(FaultReport report) async {
+    final severityColor = _severityColor(report.severity);
+
+    Widget detailRow(String label, String value, {Color? valueColor}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             SizedBox(
-              width: 34,
-              height: 34,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.2,
-                color: _accentAForeground,
+              width: 150,
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: _sub,
+                  fontSize: 12.2,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            )
-          else if (report.workflowStatus == 'reported' ||
-              report.workflowStatus == 'reopened')
-            _outlineAction(
-              label: 'Send to ITSO',
-              icon: Icons.send_rounded,
-              onPressed: () => _showForwardDialog(report),
-            )
-          else if (report.workflowStatus == 'awaiting_teacher_approval')
-              Wrap(
-                spacing: 8,
-                children: [
-                  _outlineAction(
-                    label: 'Still Damaged',
-                    icon: Icons.close_rounded,
-                    onPressed: () => _showVerifyDialog(report, false),
+            ),
+            Expanded(
+              child: SelectableText(
+                value.isEmpty ? '—' : value,
+                style: TextStyle(
+                  color: valueColor ?? _text,
+                  fontSize: 12.8,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _card,
+        shape: _dialogShape,
+        titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 6),
+        contentPadding: const EdgeInsets.fromLTRB(22, 6, 22, 8),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
+        title: _dialogTitle(
+          '${report.pcId} Report Details',
+          Icons.description_rounded,
+        ),
+        content: SizedBox(
+          width: 620,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _statusChip(report.severity.toUpperCase(), severityColor),
+                    _statusChip(
+                      _workflowLabel(report.workflowStatus),
+                      _accentBForeground,
+                    ),
+                    if (report.queuePosition != null)
+                      _statusChip(
+                        'QUEUE #${report.queuePosition}${report.queueTotal != null ? ' / ${report.queueTotal}' : ''}',
+                        const Color(0xFF8E6CEF),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Divider(color: _border),
+                detailRow('PC', report.pcId),
+                detailRow('Laboratory', report.roomName),
+                detailRow('Workstation ID', report.workstationId),
+                detailRow('Issue', report.issue),
+                detailRow('Severity', report.severity.toUpperCase(), valueColor: severityColor),
+                detailRow('Source', report.source),
+                detailRow('Reported', formatDateTime(report.createdAt)),
+                if (report.studentEmail != null)
+                  detailRow('Student account', report.studentEmail!),
+                const SizedBox(height: 8),
+                Text(
+                  'Description',
+                  style: TextStyle(
+                    color: _sub,
+                    fontSize: 12.2,
+                    fontWeight: FontWeight.w700,
                   ),
-                  _gradientButton(
-                    label: 'PC is OK',
-                    icon: Icons.check_rounded,
-                    onPressed: () => _showVerifyDialog(report, true),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: _field,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _border),
+                  ),
+                  child: SelectableText(
+                    report.details.isEmpty ? 'No description.' : report.details,
+                    style: TextStyle(color: _text, fontSize: 12.8, height: 1.45),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Divider(color: _border),
+                if (report.acceptedByName != null)
+                  detailRow(
+                    'Accepted by ITSO',
+                    '${report.acceptedByName} · ${formatDateTime(report.acceptedAt)}',
+                  ),
+                if (report.handledByName != null)
+                  detailRow(
+                    'Handled by ITSO',
+                    '${report.handledByName} · ${formatDateTime(report.handledAt)}',
+                  ),
+                if (report.completedByName != null)
+                  detailRow(
+                    'Completed by ITSO',
+                    '${report.completedByName} · ${formatDateTime(report.completedAt)}',
+                  ),
+                if (report.repairedAt != null)
+                  detailRow('Repair date', formatDateTime(report.repairedAt)),
+                if (report.teacherApprovedAt != null)
+                  detailRow(
+                    'Teacher verified',
+                    formatDateTime(report.teacherApprovedAt),
+                  ),
+                if (report.technicianNotes != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'ITSO repair notes',
+                    style: TextStyle(
+                      color: _sub,
+                      fontSize: 12.2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.all(13),
+                    decoration: BoxDecoration(
+                      color: _field,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _border),
+                    ),
+                    child: SelectableText(
+                      report.technicianNotes!,
+                      style: TextStyle(color: _text, fontSize: 12.8, height: 1.45),
+                    ),
                   ),
                 ],
-              ),
+                if (report.teacherNotes != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Teacher notes',
+                    style: TextStyle(
+                      color: _sub,
+                      fontSize: 12.2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.all(13),
+                    decoration: BoxDecoration(
+                      color: _field,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _border),
+                    ),
+                    child: SelectableText(
+                      report.teacherNotes!,
+                      style: TextStyle(color: _text, fontSize: 12.8, height: 1.45),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+          if (report.workflowStatus == 'reported' ||
+              report.workflowStatus == 'reopened')
+            _dialogPrimaryButton(
+              label: 'Send to ITSO',
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                unawaited(_showForwardDialog(report));
+              },
+            ),
+          if (report.workflowStatus == 'awaiting_teacher_approval') ...[
+            _outlineAction(
+              label: 'Still Damaged',
+              icon: Icons.close_rounded,
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                unawaited(_showVerifyDialog(report, false));
+              },
+            ),
+            _dialogPrimaryButton(
+              label: 'PC is OK',
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                unawaited(_showVerifyDialog(report, true));
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -1171,7 +1556,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   Future<void> _showCreateReport(LabOverview room) async {
-    String workstationId = room.workstations.first.workstationId;
+    final reportableWorkstations =
+        room.workstations.where((pc) => pc.canReport).toList();
+    if (reportableWorkstations.isEmpty) {
+      await _showNoRegisteredPcDialog(room);
+      return;
+    }
+    String workstationId = reportableWorkstations.first.workstationId;
     String? selectedProblem;
     String? severity;
     String details = '';
@@ -1190,14 +1581,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             if (selectedProblem == null || selectedSeverity == null) return;
             setDialogState(() => saving = true);
             try {
-              final reportId = await StaffService.instance.createTeacherReport(
+              final selectedPc = reportableWorkstations.firstWhere(
+                (pc) => pc.workstationId == workstationId,
+              );
+              final reportId = await TeacherService.instance.createReport(
                 workstationId: workstationId,
+                pcId: selectedPc.pcId,
                 issue: selectedProblem!.trim(),
                 details: details.trim(),
                 severity: selectedSeverity,
               );
               if (proofImage != null) {
-                await StaffService.instance.uploadReportAttachment(
+                await TeacherService.instance.uploadReportAttachment(
                   reportId: reportId,
                   attachmentType: 'report_evidence',
                   image: proofImage!,
@@ -1234,7 +1629,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         iconEnabledColor: _accentAForeground,
                         style: TextStyle(color: _text, fontSize: 14),
                         decoration: _dialogFieldDecoration(label: 'PC'),
-                        items: room.workstations
+                        items: reportableWorkstations
                             .map((pc) => DropdownMenuItem(
                           value: pc.workstationId,
                           child: Text(pc.pcId),
@@ -1390,7 +1785,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       icon: Icons.send_rounded,
       label: 'Teacher observations',
       actionLabel: 'Send to ITSO',
-      onSave: (notes) => StaffService.instance.forwardTeacherReport(
+      onSave: (notes) => TeacherService.instance.forwardReport(
         reportId: report.id,
         notes: notes,
       ),
@@ -1405,7 +1800,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       icon: approved ? Icons.check_circle_rounded : Icons.replay_rounded,
       label: approved ? 'Teacher verification notes' : 'Describe the remaining problem',
       actionLabel: approved ? 'Approve PC' : 'Return to ITSO',
-      onSave: (notes) => StaffService.instance.verifyTeacherRepair(
+      onSave: (notes) => TeacherService.instance.verifyRepair(
         reportId: report.id,
         approved: approved,
         notes: notes,
@@ -1440,7 +1835,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             try {
               await onSave(notes.trim());
               if (proofImage != null) {
-                await StaffService.instance.uploadReportAttachment(
+                await TeacherService.instance.uploadReportAttachment(
                   reportId: reportId,
                   attachmentType: attachmentType,
                   image: proofImage!,
@@ -1533,7 +1928,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   void _showPcDetails(LabWorkstation pc, List<FaultReport> pcReports) {
     final color = _conditionColor(pc.maintenanceColor);
-    final connectionColor = pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey;
+    final connectionColor = !pc.isRegistered
+        ? const Color(0xFF8A8F98)
+        : (pc.isOnline ? const Color(0xFF22A06B) : Colors.blueGrey);
+    final connectionLabel = !pc.isRegistered
+        ? 'UNREGISTERED'
+        : pc.connectionStatus.toUpperCase();
 
     Widget row(IconData icon, String label, String value, {Color? valueColor}) {
       return Padding(
@@ -1708,8 +2108,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 row(
                   Icons.wifi_rounded,
                   'Connection',
-                  pc.connectionStatus.toUpperCase(),
+                  connectionLabel,
                   valueColor: connectionColor,
+                ),
+                Divider(color: _border, height: 4),
+                row(
+                  pc.isRegistered ? Icons.verified_rounded : Icons.info_outline_rounded,
+                  'Registration',
+                  pc.isRegistered ? 'REGISTERED' : 'NOT REGISTERED',
+                  valueColor: pc.isRegistered ? const Color(0xFF22A06B) : const Color(0xFF8A8F98),
                 ),
                 Divider(color: _border, height: 4),
                 row(Icons.info_outline_rounded, 'Device status', pc.deviceStatus),

@@ -18,7 +18,7 @@ class AppConfigService {
   Future<void> init() async {
     final directory = await getApplicationSupportDirectory();
     await directory.create(recursive: true);
-    _file = File('${directory.path}${Platform.pathSeparator}staff_config.json');
+    _file = File('${directory.path}${Platform.pathSeparator}teacher_config.json');
 
     if (await _file!.exists()) {
       final raw = await _file!.readAsString();
