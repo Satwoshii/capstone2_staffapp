@@ -25,6 +25,11 @@ class PcHealthPrediction {
   final List<String> reasons;
   final List<PcComponentPrediction> components;
 
+  /// Confidence describes how much useful history is available for the
+  /// prediction. It is NOT the same thing as risk.
+  final int confidenceScore;
+  final String confidenceLevel;
+
   const PcHealthPrediction({
     required this.ready,
     required this.historyCount,
@@ -35,6 +40,8 @@ class PcHealthPrediction {
     required this.summary,
     required this.reasons,
     required this.components,
+    this.confidenceScore = 0,
+    this.confidenceLevel = 'low',
   });
 
   factory PcHealthPrediction.collecting(int count, {int requiredCount = 3}) {
@@ -45,9 +52,12 @@ class PcHealthPrediction {
       riskLevel: 'collecting',
       trend: 'collecting',
       predictedProblemWindow: 'Collecting health history',
-      summary: 'Syswatch needs at least $requiredCount distinct health checks before it can calculate a future-risk trend. Current history: $count/$requiredCount.',
+      summary:
+          'Syswatch needs at least $requiredCount distinct health checks before it can calculate a future-risk trend. Current history: $count/$requiredCount.',
       reasons: const [],
       components: const [],
+      confidenceScore: 0,
+      confidenceLevel: 'collecting',
     );
   }
 }

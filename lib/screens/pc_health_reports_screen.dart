@@ -502,7 +502,9 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
   bool _recordNeedsAttention(PcHealthRecord record) {
     final currentIssue = !_styleForStatus(record.status).isHealthy;
     final prediction = PcHealthPredictionService.instance.predictFor(record);
-    final futureRisk = prediction.ready && prediction.riskScore >= 25;
+    final futureRisk = prediction.ready &&
+                      prediction.riskScore >= 25 &&
+                      (prediction.confidenceScore >= 40 || prediction.riskScore >= 50);
     return currentIssue || futureRisk;
   }
 

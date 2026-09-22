@@ -108,7 +108,9 @@ class _RoomPcStatusScreenState extends State<RoomPcStatusScreen> {
                 final filteredRecords = widget.records.where((record) {
                   final style = _styleForStatus(record.status);
                   final prediction = PcHealthPredictionService.instance.predictFor(record);
-                  final predictiveIssue = prediction.ready && prediction.riskScore >= 25;
+                  final predictiveIssue = prediction.ready &&
+                      prediction.riskScore >= 25 &&
+                      (prediction.confidenceScore >= 40 || prediction.riskScore >= 50);
                   if (_issuesOnly && style.isHealthy && !predictiveIssue) return false;
                   if (search.isEmpty) return true;
                   return [
@@ -675,6 +677,10 @@ class _RoomPcStatusScreenState extends State<RoomPcStatusScreen> {
           _predictionRow('Trend', prediction.trend.toUpperCase()),
           _predictionRow('Possible issue window', prediction.predictedProblemWindow),
           _predictionRow('History used', '${prediction.historyCount} health checks'),
+          _predictionRow(
+            'Confidence',
+            '${prediction.confidenceLevel.toUpperCase()} • ${prediction.confidenceScore}/100',
+          ),
           const SizedBox(height: 10),
           Text(
             prediction.summary,

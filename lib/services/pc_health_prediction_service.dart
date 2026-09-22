@@ -16,7 +16,11 @@ import '../models/pc_health_record.dart';
 ///   3. consecutive failures,
 ///   4. robust CPU/RAM/storage trends when numeric metrics are available,
 ///   5. current severity as supporting evidence,
-///   6. recency weighting so newer observations matter more.
+///   6. real-time recency weighting so newer observations matter more,
+///   7. polling-rate normalization so rapid refreshes do not inflate risk,
+///   8. recovery streaks so repaired PCs lose old risk gradually,
+///   9. trend reliability checks that reject unstable/outlier-driven forecasts,
+///  10. confidence scoring based on sample count, time span, and data coverage.
 ///
 /// Important: an exact time-to-problem is shown ONLY when a numeric metric
 /// (CPU/RAM/storage) has enough historical time span for a real threshold
@@ -41,6 +45,30 @@ class PcHealthPredictionService {
 
   /// Only recent history is used for the active prediction.
   static const Duration predictionLookback = Duration(days: 30);
+
+  /// Newer observations matter more, but weighting is based on real elapsed
+  /// time instead of list position. This avoids over-counting PCs that report
+  /// much more frequently than others.
+  static const Duration recencyHalfLife = Duration(days: 7);
+
+  /// Very frequent polling can otherwise make one continuous outage look like
+  /// many independent failures. Boolean recurrence analysis keeps only the
+  /// latest state inside each one-hour bucket.
+  static const Duration recurrenceBucket = Duration(hours: 1);
+
+  /// Numeric trend analysis keeps at most one representative sample per 30
+  /// minutes. This reduces noise while retaining useful CPU/RAM/storage trends.
+  static const Duration metricBucket = Duration(minutes: 30);
+
+  static const double maximumTimedForecastDays = 90;
+  static const double minimumBadTrendAgreement = 0.68;
+
+  // Overall condition should not be labelled "declining" because of tiny,
+  // normal day-to-day movement. Component-level forecasting can still react
+  // to slow movement when a metric is already close to its warning threshold,
+  // but the overall trend requires a material rate of change.
+  static const double minimumCpuRamOverallTrendPerDay = 1.0;
+  static const double minimumStorageOverallTrendGbPerDay = 1.0;
 
   final Map<String, List<_HealthSnapshot>> _history = {};
   bool _initialized = false;
@@ -100,8 +128,11 @@ class PcHealthPredictionService {
       final list = _history.putIfAbsent(key, () => <_HealthSnapshot>[]);
 
       // A refresh of the same API row must not be counted as another health
-      // observation. The generated ID includes the server timestamp/details.
-      if (list.any((existing) => existing.id == sample.id)) continue;
+      // observation. Matching IDs or timestamps are treated as the same check.
+      if (list.any((existing) =>
+          existing.id == sample.id || existing.timestamp == sample.timestamp)) {
+        continue;
+      }
 
       list.add(sample);
       list.sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -122,7 +153,8 @@ class PcHealthPredictionService {
     )..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     final current = _HealthSnapshot.fromRecord(record);
-    if (!history.any((item) => item.id == current.id)) {
+    if (!history.any((item) =>
+        item.id == current.id || item.timestamp == current.timestamp)) {
       history.add(current);
       history.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     }
@@ -198,29 +230,62 @@ class PcHealthPredictionService {
       overall += 3;
     }
 
-    // Add a small bonus only when the overall instantaneous risk itself is
-    // clearly worsening over time.
+    // Overall trend uses time-bucketed snapshots so a PC that reports every
+    // minute is not treated as having more evidence than a PC that reports
+    // hourly.
+    final trendRows = _bucketSnapshots(recent, recurrenceBucket);
     final riskSlope = _robustDailySlope(
-      recent,
+      trendRows,
       (s) => s.instantRisk.toDouble(),
       requireMinimumSpan: false,
     );
-    if (riskSlope > 6) {
-      overall += 7;
-    } else if (riskSlope > 2) {
+    final trendSpan = trendRows.length >= 2
+        ? trendRows.last.timestamp.difference(trendRows.first.timestamp)
+        : Duration.zero;
+
+    // Short bursts of data are not allowed to create a large trend bonus.
+    if (trendSpan >= const Duration(hours: 24)) {
+      if (riskSlope > 6) {
+        overall += 7;
+      } else if (riskSlope > 2) {
+        overall += 3;
+      }
+    }
+
+    // Multiple independent components worsening at the same time is stronger
+    // evidence of system-wide degradation than one isolated warning.
+    final elevatedComponents = components.where((c) => c.riskScore >= 50).length;
+    if (elevatedComponents >= 3) {
+      overall += 6;
+    } else if (elevatedComponents == 2) {
       overall += 3;
     }
 
+    final warningComponents = components.where((c) => c.riskScore >= 25).length;
+    if (warningComponents >= 4) {
+      overall += 5;
+    } else if (warningComponents == 3) {
+      overall += 3;
+    }
+
+    final nearTermForecasts = components
+        .where((c) => c.estimatedDays != null && c.estimatedDays! >= 0 && c.estimatedDays! <= 14)
+        .length;
+    if (nearTermForecasts >= 2) overall += 3;
+
     final overallScore = overall.round().clamp(0, 100).toInt();
     final level = _riskLevel(overallScore);
-    final trend = _overallTrend(recent, riskSlope);
+    final metricDirection = _overallMetricDirection(recent);
+    final trend = _overallTrend(trendRows, riskSlope, metricDirection);
+    final confidenceScore = _predictionConfidence(recent);
+    final confidenceLevel = _confidenceLevel(confidenceScore);
 
     // Exact windows are permitted only when a component has a real numerical
     // threshold forecast. Binary recurrence alone never creates a fake date.
     final estimated = components
         .where((c) => c.estimatedDays != null && c.estimatedDays! >= 0)
         .map((c) => c.estimatedDays!)
-        .where((days) => days <= 90)
+        .where((days) => days <= maximumTimedForecastDays)
         .toList();
     final earliestDays = estimated.isEmpty ? null : estimated.reduce(min);
 
@@ -253,6 +318,8 @@ class PcHealthPredictionService {
       sampleCount: recent.length,
       span: recent.last.timestamp.difference(recent.first.timestamp),
       hasTimedForecast: earliestDays != null,
+      confidenceScore: confidenceScore,
+      confidenceLevel: confidenceLevel,
     );
 
     return PcHealthPrediction(
@@ -265,6 +332,8 @@ class PcHealthPredictionService {
       summary: summary,
       reasons: reasons,
       components: components,
+      confidenceScore: confidenceScore,
+      confidenceLevel: confidenceLevel,
     );
   }
 
@@ -304,81 +373,141 @@ class PcHealthPredictionService {
       );
     }
 
-    final window = available.length > 12
-        ? available.sublist(available.length - 12)
-        : available;
+    // Do not let frequent polling turn one continuous outage into dozens of
+    // independent failures. Keep one representative state per hour.
+    final representative = _bucketSnapshots(available, recurrenceBucket);
+    final window = representative.length > 24
+        ? representative.sublist(representative.length - 24)
+        : representative;
 
     final weightedFailureRate = _recencyWeightedFailureRate(window, selector);
     final rawFailures = window.where((s) => selector(s) == false).length;
+    final episodes = _failureEpisodes(window, selector);
     final consecutiveFailures = _consecutiveFailures(window, selector);
+    final healthyStreak = _consecutiveHealthy(window, selector);
     final latestFailed = selector(window.last) == false;
+    final currentFailureDuration = _currentFailureDuration(window, selector);
 
-    var score = (weightedFailureRate * 55).round();
+    final recurrenceEvidence = min(1.0, window.length / 4.0);
+    var score = (weightedFailureRate * 48 * recurrenceEvidence).round();
 
-    // Repeated / consecutive faults are stronger predictive evidence than a
-    // single isolated current fault.
+    // Independent failure episodes are stronger evidence of recurrence than
+    // repeated samples from the same outage.
+    if (episodes >= 3) {
+      score += 15;
+    } else if (episodes == 2) {
+      score += 8;
+    }
+
+    // Persistence is still important, but it is scored separately from
+    // recurrence so polling frequency cannot inflate the result.
     if (consecutiveFailures >= 3) {
-      score += 28;
+      score += 24;
     } else if (consecutiveFailures == 2) {
-      score += 18;
+      score += 14;
     } else if (latestFailed) {
+      score += 6;
+    }
+
+    if (latestFailed && currentFailureDuration >= const Duration(hours: 24)) {
       score += 8;
     }
 
     final worsening = _failureRateChange(window, selector);
     if (worsening >= 0.30) {
-      score += 18;
+      score += 15;
     } else if (worsening >= 0.15) {
-      score += 9;
+      score += 8;
     }
 
-    double? estimatedDays;
-    if (metricSelector != null && metricThreshold != null) {
-      final metricRows = window.where((s) => metricSelector(s) != null).toList();
-      if (metricRows.length >= minimumSamples &&
-          _hasMinimumMetricSpan(metricRows)) {
-        final current = _median(
-          metricRows
-              .sublist(max(0, metricRows.length - 3))
-              .map((s) => metricSelector(s)!)
-              .toList(),
-        );
-        final slope = _robustDailySlope(
-          metricRows,
-          (s) => metricSelector(s)!,
-        );
-        final badSlope = increasingIsBad ? slope : -slope;
+    // Recovery streaks gradually remove risk from old faults. This prevents a
+    // PC that was repaired from remaining high-risk for too long.
+    if (!latestFailed) {
+      if (healthyStreak >= 3) {
+        score -= 14;
+      } else if (healthyStreak == 2) {
+        score -= 7;
+      }
+    }
+    // Recovery only removes recurrence risk. It must not cancel a new numeric
+    // CPU/RAM threshold trend that is calculated below.
+    score = max(0, score);
 
-        // Persistently high utilization matters more than one spike.
-        final recentMetricValues = metricRows
-            .sublist(max(0, metricRows.length - 3))
-            .map((s) => metricSelector(s)!)
-            .toList();
-        final thresholdHits = recentMetricValues
+    double? estimatedDays;
+    bool unstableBadTrend = false;
+    bool nearThreshold = false;
+
+    if (metricSelector != null && metricThreshold != null) {
+      var metricRows = history.where((s) => metricSelector(s) != null).toList();
+      metricRows = _bucketSnapshots(metricRows, metricBucket);
+      if (metricRows.length > 24) {
+        metricRows = metricRows.sublist(metricRows.length - 24);
+      }
+
+      if (metricRows.length >= minimumSamples && _hasMinimumMetricSpan(metricRows)) {
+        final lastRows = metricRows.sublist(max(0, metricRows.length - 3));
+        final recentValues = lastRows.map((s) => metricSelector(s)!).toList();
+        final current = _median(recentValues);
+        final thresholdHits = recentValues
             .where((v) => increasingIsBad ? v >= metricThreshold : v <= metricThreshold)
             .length;
+
+        final preWarningThreshold = increasingIsBad
+            ? metricThreshold * 0.90
+            : metricThreshold * 1.10;
+        final preWarningHits = recentValues
+            .where(
+              (v) => increasingIsBad
+                  ? v >= preWarningThreshold
+                  : v <= preWarningThreshold,
+            )
+            .length;
+        nearThreshold = preWarningHits >= 2;
+
+        final trend = _trendStats(
+          metricRows,
+          (s) => metricSelector(s)!,
+          increasingIsBad: increasingIsBad,
+        );
 
         if (thresholdHits >= 2) {
           score += 28;
           estimatedDays = 0;
-        } else if (badSlope > 0.05) {
-          final distance = increasingIsBad
-              ? metricThreshold - current
-              : current - metricThreshold;
-          if (distance > 0) {
-            final days = distance / badSlope;
-            if (days.isFinite && days >= 0 && days <= 365) {
-              estimatedDays = days;
-              if (days <= 7) {
-                score += 28;
-              } else if (days <= 14) {
-                score += 20;
-              } else if (days <= 30) {
-                score += 12;
-              } else if (days <= 60) {
-                score += 6;
+        } else {
+          if (nearThreshold) score += 10;
+
+          final reliableBadTrend = trend.badSlope > 0.10 &&
+              trend.directionAgreement >= minimumBadTrendAgreement &&
+              trend.stability >= 0.35;
+
+          if (reliableBadTrend) {
+            final distance = increasingIsBad
+                ? metricThreshold - current
+                : current - metricThreshold;
+            if (distance > 0) {
+              final days = distance / trend.badSlope;
+              if (days.isFinite && days >= 0 && days <= maximumTimedForecastDays) {
+                estimatedDays = days;
+                if (days <= 7) {
+                  score += 28;
+                } else if (days <= 14) {
+                  score += 20;
+                } else if (days <= 30) {
+                  score += 12;
+                } else if (days <= 60) {
+                  score += 6;
+                } else {
+                  score += 3;
+                }
               }
             }
+
+            if (trend.accelerating) score += 6;
+          } else if (trend.badSlope > 0.10 && nearThreshold) {
+            // The metric is moving in the wrong direction, but the readings are
+            // too inconsistent to claim a failure date.
+            score += 4;
+            unstableBadTrend = true;
           }
         }
       }
@@ -389,14 +518,18 @@ class PcHealthPredictionService {
     String message;
     if (estimatedDays == 0) {
       message = '$name has persistently reached its warning threshold.';
-    } else if (estimatedDays != null && estimatedDays <= 90) {
-      message = '$name has a sustained trend toward its warning threshold in about ${_daysText(estimatedDays)} if the current trend continues.';
+    } else if (estimatedDays != null) {
+      message = '$name has a consistent trend toward its warning threshold in about ${_daysText(estimatedDays)} if the trend continues.';
     } else if (consecutiveFailures >= 2) {
-      message = '$name has repeated consecutive failures and has an elevated recurrence risk.';
-    } else if (rawFailures >= 2) {
-      message = '$name has intermittent recurring failures in recent health checks.';
+      message = '$name has a persistent failure pattern across separate health-check periods.';
+    } else if (episodes >= 2 || rawFailures >= 2) {
+      message = '$name has recurring failures in recent health history.';
     } else if (latestFailed) {
-      message = '$name currently reports an isolated problem; more history is needed before treating it as a predictive trend.';
+      message = '$name currently reports a problem, but more history is needed before treating it as a predictive trend.';
+    } else if (unstableBadTrend) {
+      message = '$name is near its warning threshold and is trending upward, but the trend is not consistent enough for a reliable date estimate.';
+    } else if (nearThreshold) {
+      message = '$name is operating near its warning threshold and should be monitored.';
     } else {
       message = '$name is stable in recent health checks.';
     }
@@ -417,7 +550,7 @@ class PcHealthPredictionService {
       selector: (s) => s.storageCapacityOk,
     );
 
-    final metricRows = history
+    var metricRows = history
         .where(
           (s) =>
               s.storageFreeGb != null &&
@@ -425,13 +558,14 @@ class PcHealthPredictionService {
               s.storageTotalGb! > 0,
         )
         .toList();
+    metricRows = _bucketSnapshots(metricRows, metricBucket);
 
     if (metricRows.length < minimumSamples || !_hasMinimumMetricSpan(metricRows)) {
       return recurrence;
     }
 
-    final recentRows = metricRows.length > 12
-        ? metricRows.sublist(metricRows.length - 12)
+    final recentRows = metricRows.length > 24
+        ? metricRows.sublist(metricRows.length - 24)
         : metricRows;
 
     final lastThree = recentRows.sublist(max(0, recentRows.length - 3));
@@ -441,10 +575,15 @@ class PcHealthPredictionService {
 
     final threshold = total * 0.10;
     final freePercent = currentFree / total * 100;
-    final slope = _robustDailySlope(recentRows, (s) => s.storageFreeGb!);
+    final trend = _trendStats(
+      recentRows,
+      (s) => s.storageFreeGb!,
+      increasingIsBad: false,
+    );
 
     var score = recurrence.riskScore;
     double? estimatedDays;
+    var unstableDecline = false;
 
     if (freePercent <= 10) {
       score += 35;
@@ -455,9 +594,13 @@ class PcHealthPredictionService {
       score += 10;
     }
 
-    if (slope < -0.05 && currentFree > threshold) {
-      final days = (currentFree - threshold) / slope.abs();
-      if (days.isFinite && days >= 0 && days <= 365) {
+    final reliableDecline = trend.badSlope > 0.05 &&
+        trend.directionAgreement >= minimumBadTrendAgreement &&
+        trend.stability >= 0.35;
+
+    if (estimatedDays == null && reliableDecline && currentFree > threshold) {
+      final days = (currentFree - threshold) / trend.badSlope;
+      if (days.isFinite && days >= 0 && days <= maximumTimedForecastDays) {
         estimatedDays = days;
         if (days <= 7) {
           score += 30;
@@ -467,8 +610,14 @@ class PcHealthPredictionService {
           score += 14;
         } else if (days <= 60) {
           score += 7;
+        } else {
+          score += 3;
         }
       }
+      if (trend.accelerating) score += 6;
+    } else if (trend.badSlope > 0.05 && freePercent <= 20) {
+      unstableDecline = true;
+      score += 4;
     }
 
     score = score.clamp(0, 100).toInt();
@@ -476,8 +625,12 @@ class PcHealthPredictionService {
     String message;
     if (estimatedDays == 0) {
       message = 'Storage free space is persistently at or below the 10% warning threshold.';
-    } else if (estimatedDays != null && estimatedDays <= 90) {
-      message = 'Free storage has a sustained decline and may reach the 10% free-space threshold in about ${_daysText(estimatedDays)}.';
+    } else if (estimatedDays != null) {
+      message = 'Free storage has a consistent decline and may reach the 10% free-space threshold in about ${_daysText(estimatedDays)}.';
+    } else if (freePercent <= 15) {
+      message = 'Storage has only ${freePercent.toStringAsFixed(1)}% free space remaining and needs attention.';
+    } else if (unstableDecline) {
+      message = 'Free storage is decreasing, but the rate is too inconsistent for a reliable date estimate.';
     } else if (recurrence.riskScore >= 25) {
       message = recurrence.message;
     } else {
@@ -494,41 +647,39 @@ class PcHealthPredictionService {
   }
 
   PcComponentPrediction _predictPeripherals(List<_HealthSnapshot> history) {
-    final recent = history.length > 12
-        ? history.sublist(history.length - 12)
-        : history;
+    final representative = _bucketSnapshots(history, recurrenceBucket);
+    final recent = representative.length > 24
+        ? representative.sublist(representative.length - 24)
+        : representative;
 
-    var totalWeight = 0.0;
-    var failedWeight = 0.0;
-    var latestFailures = 0;
-
-    for (var i = 0; i < recent.length; i++) {
-      // Newer snapshots get more weight.
-      final weight = 1.0 + (i / max(1, recent.length - 1));
-      final states = <bool?>[
-        recent[i].keyboardOk,
-        recent[i].mouseOk,
-        recent[i].monitorOk,
-        recent[i].webcamOk,
-        recent[i].printerOk,
-        recent[i].headsetOk,
-      ];
-      for (final state in states) {
-        if (state == null) continue;
-        totalWeight += weight;
-        if (!state) failedWeight += weight;
-      }
+    if (recent.isEmpty) {
+      return const PcComponentPrediction(
+        component: 'Peripherals',
+        riskScore: 0,
+        riskLevel: 'low',
+        message: 'No peripheral history is available.',
+      );
     }
 
-    for (final state in <bool?>[
-      recent.last.keyboardOk,
-      recent.last.mouseOk,
-      recent.last.monitorOk,
-      recent.last.webcamOk,
-      recent.last.printerOk,
-      recent.last.headsetOk,
-    ]) {
-      if (state == false) latestFailures++;
+    var weightedFailureFraction = 0.0;
+    var totalWeight = 0.0;
+
+    for (final row in recent) {
+      final states = <bool?>[
+        row.keyboardOk,
+        row.mouseOk,
+        row.monitorOk,
+        row.webcamOk,
+        row.printerOk,
+        row.headsetOk,
+      ].whereType<bool>().toList();
+      if (states.isEmpty) continue;
+
+      final failed = states.where((state) => !state).length;
+      final fraction = failed / states.length;
+      final weight = _timeWeight(row.timestamp, recent.last.timestamp);
+      weightedFailureFraction += fraction * weight;
+      totalWeight += weight;
     }
 
     if (totalWeight == 0) {
@@ -540,17 +691,40 @@ class PcHealthPredictionService {
       );
     }
 
-    final rate = failedWeight / totalWeight;
-    var score = (rate * 65).round();
+    final latestStates = <bool?>[
+      recent.last.keyboardOk,
+      recent.last.mouseOk,
+      recent.last.monitorOk,
+      recent.last.webcamOk,
+      recent.last.printerOk,
+      recent.last.headsetOk,
+    ];
+    final latestFailures = latestStates.where((state) => state == false).length;
 
-    // A current peripheral issue is evidence, but repeated history matters more.
-    score += min(15, latestFailures * 5).toInt();
+    final rate = weightedFailureFraction / totalWeight;
+    var score = (rate * 60).round() + min(12, latestFailures * 4).toInt();
+
+    // If the last three representative checks are fully healthy, old
+    // peripheral problems fade faster after a repair/reconnection.
+    final recentThree = recent.sublist(max(0, recent.length - 3));
+    final recovered = recentThree.length >= 3 && recentThree.every((row) {
+      return <bool?>[
+        row.keyboardOk,
+        row.mouseOk,
+        row.monitorOk,
+        row.webcamOk,
+        row.printerOk,
+        row.headsetOk,
+      ].every((state) => state != false);
+    });
+    if (recovered) score -= 10;
+
     score = score.clamp(0, 100).toInt();
 
     final message = rate >= 0.25
-        ? 'Repeated peripheral disconnects are occurring in recent health checks.'
+        ? 'Repeated peripheral problems are present across recent health-check periods.'
         : latestFailures > 0
-            ? '$latestFailures peripheral ${latestFailures == 1 ? 'problem is' : 'problems are'} currently detected, but recurrence history is still limited.'
+            ? '$latestFailures peripheral ${latestFailures == 1 ? 'problem is' : 'problems are'} currently detected; more recurrence history is needed.'
             : 'Peripheral connections are stable.';
 
     return PcComponentPrediction(
@@ -565,12 +739,14 @@ class PcHealthPredictionService {
     List<_HealthSnapshot> rows,
     bool? Function(_HealthSnapshot) selector,
   ) {
+    if (rows.isEmpty) return 0;
+    final latest = rows.last.timestamp;
     var failed = 0.0;
     var total = 0.0;
-    for (var i = 0; i < rows.length; i++) {
-      final value = selector(rows[i]);
+    for (final row in rows) {
+      final value = selector(row);
       if (value == null) continue;
-      final weight = 1.0 + (i / max(1, rows.length - 1));
+      final weight = _timeWeight(row.timestamp, latest);
       total += weight;
       if (!value) failed += weight;
     }
@@ -593,6 +769,52 @@ class PcHealthPredictionService {
     return count;
   }
 
+  int _consecutiveHealthy(
+    List<_HealthSnapshot> rows,
+    bool? Function(_HealthSnapshot) selector,
+  ) {
+    var count = 0;
+    for (var i = rows.length - 1; i >= 0; i--) {
+      final value = selector(rows[i]);
+      if (value == true) {
+        count++;
+      } else if (value == false) {
+        break;
+      }
+    }
+    return count;
+  }
+
+  int _failureEpisodes(
+    List<_HealthSnapshot> rows,
+    bool? Function(_HealthSnapshot) selector,
+  ) {
+    var episodes = 0;
+    bool previouslyFailed = false;
+    for (final row in rows) {
+      final value = selector(row);
+      if (value == false && !previouslyFailed) episodes++;
+      if (value != null) previouslyFailed = value == false;
+    }
+    return episodes;
+  }
+
+  Duration _currentFailureDuration(
+    List<_HealthSnapshot> rows,
+    bool? Function(_HealthSnapshot) selector,
+  ) {
+    if (rows.isEmpty || selector(rows.last) != false) return Duration.zero;
+    var start = rows.last.timestamp;
+    for (var i = rows.length - 2; i >= 0; i--) {
+      if (selector(rows[i]) == false) {
+        start = rows[i].timestamp;
+      } else {
+        break;
+      }
+    }
+    return rows.last.timestamp.difference(start);
+  }
+
   double _failureRateChange(
     List<_HealthSnapshot> rows,
     bool? Function(_HealthSnapshot) selector,
@@ -609,6 +831,97 @@ class PcHealthPredictionService {
     }
 
     return rate(newer) - rate(older);
+  }
+
+  List<_HealthSnapshot> _bucketSnapshots(
+    List<_HealthSnapshot> rows,
+    Duration bucket,
+  ) {
+    if (rows.length <= 1 || bucket.inMilliseconds <= 0) {
+      return List<_HealthSnapshot>.from(rows)
+        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    }
+
+    final sorted = List<_HealthSnapshot>.from(rows)
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final buckets = <int, _HealthSnapshot>{};
+    for (final row in sorted) {
+      final key = row.timestamp.millisecondsSinceEpoch ~/ bucket.inMilliseconds;
+      buckets[key] = row; // latest reading wins inside the bucket
+    }
+    final result = buckets.values.toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return result;
+  }
+
+  double _timeWeight(DateTime timestamp, DateTime latest) {
+    final ageHours = max(0, latest.difference(timestamp).inMinutes) / 60.0;
+    final halfLifeHours = recencyHalfLife.inHours.toDouble();
+    if (halfLifeHours <= 0) return 1;
+    return pow(0.5, ageHours / halfLifeHours).toDouble().clamp(0.05, 1.0).toDouble();
+  }
+
+  _TrendStats _trendStats(
+    List<_HealthSnapshot> rows,
+    double Function(_HealthSnapshot) value, {
+    required bool increasingIsBad,
+  }) {
+    if (rows.length < minimumSamples || !_hasMinimumMetricSpan(rows)) {
+      return const _TrendStats();
+    }
+
+    final slopes = _pairwiseDailySlopes(rows, value);
+    if (slopes.isEmpty) return const _TrendStats();
+
+    final slope = _median(slopes);
+    final badSlope = increasingIsBad ? slope : -slope;
+    final badDirections = slopes.where((s) => increasingIsBad ? s > 0 : s < 0).length;
+    final directionAgreement = badDirections / slopes.length;
+    final mad = _medianAbsoluteDeviation(slopes, slope);
+    final stability = 1.0 -
+        (mad / (slope.abs() + 0.25)).clamp(0.0, 1.0).toDouble();
+
+    var accelerating = false;
+    if (rows.length >= 5) {
+      final split = rows.length ~/ 2;
+      final older = rows.sublist(0, split + 1);
+      final newer = rows.sublist(max(0, split - 1));
+      final oldSlope = _robustDailySlope(older, value, requireMinimumSpan: false);
+      final newSlope = _robustDailySlope(newer, value, requireMinimumSpan: false);
+      final oldBad = increasingIsBad ? oldSlope : -oldSlope;
+      final newBad = increasingIsBad ? newSlope : -newSlope;
+      accelerating = newBad > 0.10 && newBad > oldBad + max(0.5, oldBad.abs() * 0.40);
+    }
+
+    return _TrendStats(
+      slope: slope,
+      badSlope: max(0.0, badSlope),
+      directionAgreement: directionAgreement,
+      stability: stability,
+      accelerating: accelerating,
+    );
+  }
+
+  List<double> _pairwiseDailySlopes(
+    List<_HealthSnapshot> rows,
+    double Function(_HealthSnapshot) value,
+  ) {
+    final slopes = <double>[];
+    for (var i = 0; i < rows.length - 1; i++) {
+      for (var j = i + 1; j < rows.length; j++) {
+        final minutes = rows[j].timestamp.difference(rows[i].timestamp).inMinutes;
+        if (minutes <= 0) continue;
+        final days = minutes / 1440.0;
+        final slope = (value(rows[j]) - value(rows[i])) / days;
+        if (slope.isFinite) slopes.add(slope);
+      }
+    }
+    return slopes;
+  }
+
+  double _medianAbsoluteDeviation(List<double> values, double center) {
+    if (values.isEmpty) return 0;
+    return _median(values.map((v) => (v - center).abs()).toList());
   }
 
   bool _hasMinimumMetricSpan(List<_HealthSnapshot> rows) {
@@ -642,10 +955,80 @@ class PcHealthPredictionService {
     return slopes.isEmpty ? 0 : _median(slopes);
   }
 
-  String _overallTrend(List<_HealthSnapshot> history, double riskSlope) {
-    if (history.length < minimumSamples) return 'collecting';
+  int _overallMetricDirection(List<_HealthSnapshot> history) {
+    int worsening = 0;
+    int improving = 0;
 
-    // Compare weighted recent and older risk instead of relying on one sample.
+    void evaluate(
+      double? Function(_HealthSnapshot) selector, {
+      required bool increasingIsBad,
+      required double minimumMaterialSlope,
+    }) {
+      var rows = history.where((s) => selector(s) != null).toList();
+      rows = _bucketSnapshots(rows, metricBucket);
+      if (rows.length < minimumSamples || !_hasMinimumMetricSpan(rows)) return;
+
+      final bad = _trendStats(
+        rows,
+        (s) => selector(s)!,
+        increasingIsBad: increasingIsBad,
+      );
+
+      // A reliable direction is not enough by itself. Small movement such as
+      // CPU 30 -> 31 over several days or storage 150 -> 146 GB over eight
+      // days is normal variation and must not turn the whole PC "declining".
+      if (bad.badSlope >= minimumMaterialSlope &&
+          bad.directionAgreement >= minimumBadTrendAgreement &&
+          bad.stability >= 0.35) {
+        worsening++;
+        return;
+      }
+
+      // Evaluate the opposite direction using the same reliability and
+      // material-change rules.
+      final good = _trendStats(
+        rows,
+        (s) => selector(s)!,
+        increasingIsBad: !increasingIsBad,
+      );
+      if (good.badSlope >= minimumMaterialSlope &&
+          good.directionAgreement >= minimumBadTrendAgreement &&
+          good.stability >= 0.35) {
+        improving++;
+      }
+    }
+
+    evaluate(
+      (s) => s.cpuUsage,
+      increasingIsBad: true,
+      minimumMaterialSlope: minimumCpuRamOverallTrendPerDay,
+    );
+    evaluate(
+      (s) => s.ramUsage,
+      increasingIsBad: true,
+      minimumMaterialSlope: minimumCpuRamOverallTrendPerDay,
+    );
+    evaluate(
+      (s) => s.storageFreeGb,
+      increasingIsBad: false,
+      minimumMaterialSlope: minimumStorageOverallTrendGbPerDay,
+    );
+
+    if (worsening >= 2) return 1;
+    if (improving >= 2) return -1;
+    return 0;
+  }
+
+  String _overallTrend(
+    List<_HealthSnapshot> history,
+    double riskSlope,
+    int metricDirection,
+  ) {
+    // The prediction can be ready from raw history while time bucketing leaves
+    // fewer than three independent periods. In that case, avoid claiming a
+    // direction and report a stable trend until more time-separated data exists.
+    if (history.length < minimumSamples) return 'stable';
+
     final split = max(1, history.length ~/ 2);
     final older = history.sublist(0, split);
     final newer = history.sublist(split);
@@ -657,9 +1040,68 @@ class PcHealthPredictionService {
         : newer.map((s) => s.instantRisk).reduce((a, b) => a + b) /
             newer.length;
 
-    if (newAvg - oldAvg >= 12 || riskSlope >= 3) return 'declining';
-    if (oldAvg - newAvg >= 12 || riskSlope <= -3) return 'improving';
+    if (newAvg - oldAvg >= 12 || riskSlope >= 3 || metricDirection > 0) {
+      return 'declining';
+    }
+    if (oldAvg - newAvg >= 12 || riskSlope <= -3 || metricDirection < 0) {
+      return 'improving';
+    }
     return 'stable';
+  }
+
+  int _predictionConfidence(List<_HealthSnapshot> history) {
+    if (history.length < minimumSamples) return 0;
+
+    final representative = _bucketSnapshots(history, recurrenceBucket);
+    if (representative.isEmpty) return 0;
+
+    final sampleFactor = min(1.0, representative.length / 8.0);
+    final spanHours = representative.length >= 2
+        ? representative.last.timestamp
+                .difference(representative.first.timestamp)
+                .inMinutes /
+            60.0
+        : 0.0;
+    final spanFactor = min(1.0, spanHours / (24.0 * 7.0));
+
+    final coverage = representative
+            .map((row) => row.coreCoverage)
+            .fold<double>(0.0, (a, b) => a + b) /
+        representative.length;
+
+    final numericCoverage = representative
+            .map((row) {
+              final values = <double?>[
+                row.cpuUsage,
+                row.ramUsage,
+                row.storageFreeGb,
+                row.storageTotalGb,
+              ];
+              return values.where((v) => v != null).length / values.length;
+            })
+            .fold<double>(0.0, (a, b) => a + b) /
+        representative.length;
+
+    var score = (
+      sampleFactor * 40 +
+      spanFactor * 30 +
+      coverage * 20 +
+      numericCoverage * 10
+    ).round();
+
+    // Confidence should not look high when all checks happened in one short
+    // testing session, even if there are many rows.
+    if (spanHours < 24) score = min(score, 45);
+    if (representative.length == 3) score = min(score, 55);
+    if (representative.length == 4) score = min(score, 65);
+
+    return score.clamp(0, 100).toInt();
+  }
+
+  String _confidenceLevel(int score) {
+    if (score >= 70) return 'high';
+    if (score >= 40) return 'medium';
+    return 'low';
   }
 
   String _predictionWindow({
@@ -693,18 +1135,22 @@ class PcHealthPredictionService {
     required int sampleCount,
     required Duration span,
     required bool hasTimedForecast,
+    required int confidenceScore,
+    required String confidenceLevel,
   }) {
     final quality = sampleCount >= recommendedSamples
         ? 'based on $sampleCount recent checks'
-        : 'based on only $sampleCount checks; confidence is still limited';
+        : 'based on only $sampleCount checks';
 
     final spanHours = span.inHours;
     final spanText = spanHours >= 24
         ? '${(spanHours / 24).toStringAsFixed(spanHours >= 72 ? 0 : 1)} days'
         : '$spanHours hours';
+    final confidence =
+        '${confidenceLevel.toUpperCase()} confidence ($confidenceScore/100)';
 
     if (riskLevel == 'low') {
-      return 'The workstation is currently stable. No significant future-risk pattern is detected $quality across $spanText. Predictive risk: $riskScore/100.';
+      return 'The workstation is currently stable. No significant future-risk pattern is detected $quality across $spanText. Predictive risk: $riskScore/100. $confidence.';
     }
 
     final source = strongest.isEmpty ? 'recent health history' : strongest.join(' and ');
@@ -713,12 +1159,12 @@ class PcHealthPredictionService {
         : 'A reliable failure date cannot be calculated from the available data.';
 
     if (riskLevel == 'moderate') {
-      return 'The workstation has a moderate future-risk score of $riskScore/100. $source shows a recurring or worsening pattern, $quality across $spanText. $timing';
+      return 'The workstation has a moderate future-risk score of $riskScore/100. $source shows a recurring or worsening pattern, $quality across $spanText. $timing $confidence.';
     }
     if (riskLevel == 'high') {
-      return 'The workstation has a high future-risk score of $riskScore/100. $source shows a strong recurring or worsening pattern, $quality across $spanText. $timing';
+      return 'The workstation has a high future-risk score of $riskScore/100. $source shows a strong recurring or worsening pattern, $quality across $spanText. $timing $confidence.';
     }
-    return 'The workstation has a critical predictive risk score of $riskScore/100. $source shows the strongest recurring or worsening pattern, $quality across $spanText. $timing';
+    return 'The workstation has a critical predictive risk score of $riskScore/100. $source shows the strongest recurring or worsening pattern, $quality across $spanText. $timing $confidence.';
   }
 
   static String _riskLevel(int score) {
@@ -772,6 +1218,22 @@ class PcHealthPredictionService {
   }
 }
 
+class _TrendStats {
+  final double slope;
+  final double badSlope;
+  final double directionAgreement;
+  final double stability;
+  final bool accelerating;
+
+  const _TrendStats({
+    this.slope = 0,
+    this.badSlope = 0,
+    this.directionAgreement = 0,
+    this.stability = 0,
+    this.accelerating = false,
+  });
+}
+
 class _HealthSnapshot {
   final String id;
   final DateTime timestamp;
@@ -815,6 +1277,21 @@ class _HealthSnapshot {
     this.storageTotalGb,
   });
 
+  double get coreCoverage {
+    final values = <bool?>[
+      cpuOk,
+      ramOk,
+      diskOk,
+      storageHealthOk,
+      storageCapacityOk,
+      networkOk,
+      keyboardOk,
+      mouseOk,
+      monitorOk,
+    ];
+    return values.where((v) => v != null).length / values.length;
+  }
+
   int get instantRisk {
     var score = 0;
     if (cpuOk == false) score = max(score, 85);
@@ -845,9 +1322,12 @@ class _HealthSnapshot {
     final fields = _normalizedMap(record.details);
     final timestamp = record.lastCheck ?? DateTime.now();
     final detailsSignature = _stableDetailsSignature(record.details);
+    final recordId = record.id.trim();
     final id = record.lastCheck != null
-        ? '${timestamp.toIso8601String()}|${record.status}|$detailsSignature'
-        : '${record.id}|${record.status}|$detailsSignature';
+        ? '${recordId.isEmpty ? 'health' : recordId}|${timestamp.toIso8601String()}'
+        : recordId.isNotEmpty
+            ? recordId
+            : '${record.status}|$detailsSignature';
 
     return _HealthSnapshot(
       id: id,
