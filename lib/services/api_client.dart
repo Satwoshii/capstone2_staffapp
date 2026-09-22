@@ -79,7 +79,7 @@ class ApiClient {
       final boundary = '----syswatch${DateTime.now().microsecondsSinceEpoch}';
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
       request.headers.set(HttpHeaders.contentTypeHeader, 'multipart/form-data; boundary=$boundary');
-      request.headers.set('X-Syswatch-Client', 'teacher-app');
+      request.headers.set('X-Syswatch-Client', 'staff-app');
       if (authenticated) {
         final token = AppConfigService.instance.apiToken;
         if (token.isEmpty) {
@@ -129,7 +129,7 @@ class ApiClient {
       if (token.isEmpty) throw const ApiRequestException(statusCode: 401, message: 'Sign in again to continue.');
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       request.headers.set('X-Syswatch-User-Token', token);
-      request.headers.set('X-Syswatch-Client', 'teacher-app');
+      request.headers.set('X-Syswatch-Client', 'staff-app');
       final response = await request.close().timeout(const Duration(seconds: 60));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final raw = await utf8.decoder.bind(response).join();
@@ -172,7 +172,7 @@ class ApiClient {
       final request = await client.openUrl(method, uri).timeout(_connectTimeout);
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
       request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
-      request.headers.set('X-Syswatch-Client', 'teacher-app');
+      request.headers.set('X-Syswatch-Client', 'staff-app');
 
       if (authenticated) {
         final token = AppConfigService.instance.apiToken;

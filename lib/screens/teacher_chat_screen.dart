@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
 import '../models/teacher_chat.dart';
-import '../services/teacher_service.dart';
+import '../services/staff_service.dart';
 import '../utils/value_helpers.dart';
 
 class TeacherChatScreen extends StatefulWidget {
@@ -71,7 +71,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     _refreshing = true;
     if (!silent && mounted) setState(() => _loading = true);
     try {
-      final data = await TeacherService.instance.chatOverview();
+      final data = await StaffService.instance.teacherChatOverview();
       if (!mounted) return;
       setState(() {
         _conversation = data.$1;
@@ -98,7 +98,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     setState(() => _sending = true);
 
     try {
-      await TeacherService.instance.sendChatMessage(message);
+      await StaffService.instance.sendTeacherChatMessage(message);
 
       if (!mounted) return;
 

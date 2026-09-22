@@ -1,22 +1,22 @@
-name: capstone2_teacher
-description: "SysWatch Teacher - automatic Windows account session app."
+name: syswatch_admin
+description: Syswatch Staff, Super Admin, ITSO, and Teacher intranet application.
 publish_to: 'none'
-
-version: 1.0.0+1
+version: 2.8.0+9
 
 environment:
-  sdk: ^3.12.0
+  sdk: '>=3.5.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
-  path_provider: ^2.1.5
+  desktop_drop: any
+  file_selector: any
+  path_provider: any
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: any
 
 flutter:
   uses-material-design: true

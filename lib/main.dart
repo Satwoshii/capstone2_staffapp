@@ -1,116 +1,87 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import 'screens/teacher_login_screen.dart';
-import 'screens/teacher_room_config_dialog.dart';
+import 'models/app_user.dart';
+import 'screens/staff_login_screen.dart';
+import 'screens/teacher_dashboard_screen.dart';
 import 'services/app_config_service.dart';
-import 'services/teacher_windows_session_service.dart';
 import 'services/theme_service.dart';
+import 'services/teacher_windows_session_service.dart';
 import 'widgets/theme_toggle_button.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   Object? startupError;
-  try {
+  try { 
     await AppConfigService.instance.init();
   } catch (error) {
     startupError = error;
   }
 
-  runApp(SysWatchTeacherApp(startupError: startupError));
-
-  // Keep the Teacher Windows-session recorder active in the background.
-  // This does not make the window fullscreen and does not lock the PC.
+  AppUser? automaticTeacher;
   if (startupError == null) {
+    automaticTeacher = await TeacherWindowsSessionService.instance
+        .tryAutomaticTeacherLogin();
+  }
+
+  runApp(StaffAdminApp(
+    startupError: startupError,
+    automaticTeacher: automaticTeacher,
+  ));
+
+  // If this Windows profile has not been securely linked for dashboard
+  // auto-login yet, keep the background recorder active. A first successful
+  // Teacher password login will create the secure link for future launches.
+  if (startupError == null && automaticTeacher == null) {
     unawaited(TeacherWindowsSessionService.instance.start());
   }
 }
 
-class SysWatchTeacherApp extends StatefulWidget {
+class StaffAdminApp extends StatefulWidget {
   final Object? startupError;
+  final AppUser? automaticTeacher;
 
-  const SysWatchTeacherApp({super.key, this.startupError});
+  const StaffAdminApp({
+    super.key,
+    this.startupError,
+    this.automaticTeacher,
+  });
 
   @override
-  State<SysWatchTeacherApp> createState() => _SysWatchTeacherAppState();
+  State<StaffAdminApp> createState() => _StaffAdminAppState();
 }
 
-class _SysWatchTeacherAppState extends State<SysWatchTeacherApp> {
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+class _StaffAdminAppState extends State<StaffAdminApp> {
   late ThemeMode _themeMode;
-  bool _teacherConfigOpen = false;
 
   @override
   void initState() {
     super.initState();
     _themeMode = ThemeService.instance.themeMode;
     ThemeService.instance.addListener(_handleThemeChanged);
-    HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvent);
   }
 
   void _handleThemeChanged() {
     if (!mounted) return;
+
     final next = ThemeService.instance.themeMode;
     if (next == _themeMode) return;
+
     setState(() => _themeMode = next);
-  }
-
-  bool _handleGlobalKeyEvent(KeyEvent event) {
-    if (event is! KeyDownEvent) return false;
-    final keyboard = HardwareKeyboard.instance;
-    final isConfigShortcut = event.logicalKey == LogicalKeyboardKey.keyA &&
-        keyboard.isControlPressed &&
-        keyboard.isShiftPressed;
-    if (!isConfigShortcut) return false;
-
-    unawaited(_openTeacherRoomConfiguration());
-    return true;
-  }
-
-  Future<void> _openTeacherRoomConfiguration() async {
-    if (_teacherConfigOpen) return;
-    final context = _navigatorKey.currentContext;
-    if (context == null) return;
-
-    _teacherConfigOpen = true;
-    try {
-      final saved = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const TeacherRoomConfigDialog(),
-      );
-      if (saved != true) return;
-
-      // Force a fresh automatic Teacher login so the newly assigned room is
-      // returned by the server immediately. Windows identity recording stays
-      // active in the background.
-      await AppConfigService.instance.clearSession();
-      if (!mounted) return;
-      _navigatorKey.currentState?.pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const TeacherLoginScreen()),
-        (_) => false,
-      );
-    } finally {
-      _teacherConfigOpen = false;
-    }
   }
 
   @override
   void dispose() {
     ThemeService.instance.removeListener(_handleThemeChanged);
-    HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvent);
-    TeacherWindowsSessionService.instance.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: _navigatorKey,
-      title: 'SysWatch Teacher',
+      title: 'SysWatch Admin',
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       theme: ThemeData(
@@ -167,19 +138,19 @@ class _SysWatchTeacherAppState extends State<SysWatchTeacherApp> {
           ),
         ),
       ),
-      // Normal desktop window: no kiosk service, no fullscreen call, and no
-      // Admin/ITSO login route. The Teacher Windows-account flow starts here.
-      home: widget.startupError == null
-          ? const TeacherLoginScreen()
-          : _TeacherStartupErrorScreen(error: widget.startupError!),
+      home: widget.startupError != null
+          ? _StartupErrorScreen(error: widget.startupError!)
+          : widget.automaticTeacher != null
+              ? TeacherDashboardScreen(user: widget.automaticTeacher!)
+              : const StaffLoginScreen(),
     );
   }
 }
 
-class _TeacherStartupErrorScreen extends StatelessWidget {
+class _StartupErrorScreen extends StatelessWidget {
   final Object error;
 
-  const _TeacherStartupErrorScreen({required this.error});
+  const _StartupErrorScreen({required this.error});
 
   @override
   Widget build(BuildContext context) {
@@ -196,20 +167,19 @@ class _TeacherStartupErrorScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.school_outlined,
+                        Icons.storage_outlined,
                         size: 64,
                         color: Theme.of(context).colorScheme.error,
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'SysWatch Teacher could not start',
+                        'Syswatch Admin could not start',
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'The local Teacher application configuration could not '
-                        'be opened. Check folder permissions, then restart the '
-                        'Teacher app.',
+                        'The local application configuration could not be opened. '
+                        'Check folder permissions, then restart the Admin App.',
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
