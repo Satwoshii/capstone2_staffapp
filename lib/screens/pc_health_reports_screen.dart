@@ -59,7 +59,9 @@ class _PcHealthReportsScreenState extends State<PcHealthReportsScreen> {
 
   Future<List<PcHealthRecord>> _loadHealthRecords() async {
     final records = await StaffService.instance.listPcHealth();
-    await PcHealthPredictionService.instance.ingest(records);
+    final predictor = PcHealthPredictionService.instance;
+    await predictor.ingest(records);
+    await predictor.syncServerHistory();
     return records;
   }
 

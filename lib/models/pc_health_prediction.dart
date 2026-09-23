@@ -25,6 +25,10 @@ class PcHealthPrediction {
   final List<String> reasons;
   final List<PcComponentPrediction> components;
 
+  /// Extra explainability notes such as recent maintenance, a repair recurrence,
+  /// or a per-PC/room baseline anomaly.
+  final List<String> contextNotes;
+
   /// Confidence describes how much useful history is available for the
   /// prediction. It is NOT the same thing as risk.
   final int confidenceScore;
@@ -40,6 +44,7 @@ class PcHealthPrediction {
     required this.summary,
     required this.reasons,
     required this.components,
+    this.contextNotes = const [],
     this.confidenceScore = 0,
     this.confidenceLevel = 'low',
   });
@@ -56,6 +61,7 @@ class PcHealthPrediction {
           'Syswatch needs at least $requiredCount distinct health checks before it can calculate a future-risk trend. Current history: $count/$requiredCount.',
       reasons: const [],
       components: const [],
+      contextNotes: const [],
       confidenceScore: 0,
       confidenceLevel: 'collecting',
     );

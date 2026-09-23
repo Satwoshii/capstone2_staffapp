@@ -16,6 +16,7 @@ class ApiEndpoints {
 
   static const String dashboard = 'staff/dashboard.php';
   static const String pcHealth = 'staff/pc_health.php';
+  static const String pcHealthHistory = 'staff/pc_health_history.php';
   static const String faultReports = 'staff/fault_reports.php';
   static const String markRepaired = 'staff/mark_repaired.php';
   static const String acceptReport = 'staff/accept_report.php';

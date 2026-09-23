@@ -719,6 +719,31 @@ class _RoomPcStatusScreenState extends State<RoomPcStatusScreen> {
               ),
             ),
           ],
+          if (prediction.contextNotes.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Prediction context',
+              style: TextStyle(
+                color: _textColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...prediction.contextNotes.map(
+              (note) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '• $note',
+                  style: TextStyle(
+                    color: _subTextColor,
+                    fontSize: 11.5,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           ExpansionTile(
             tilePadding: EdgeInsets.zero,

@@ -241,6 +241,22 @@ class StaffService {
     return _mapList(response['records'], PcHealthRecord.fromJson);
   }
 
+  Future<List<PcHealthRecord>> listPcHealthHistory({
+    String? workstationId,
+    int days = 30,
+  }) async {
+    final query = <String, String>{
+      'days': days.clamp(1, 90).toString(),
+      if (workstationId != null && workstationId.trim().isNotEmpty)
+        'workstation_id': workstationId.trim(),
+    };
+    final response = await ApiClient.instance.getJson(
+      ApiEndpoints.pcHealthHistory,
+      query: query,
+    );
+    return _mapList(response['records'], PcHealthRecord.fromJson);
+  }
+
   Future<List<FaultReport>> listFaultReports() async {
     final response = await ApiClient.instance.getJson(ApiEndpoints.faultReports);
     return _mapList(response['reports'], FaultReport.fromJson);
